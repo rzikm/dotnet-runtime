@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TargetFrameworks>$(NetCoreAppCurrent)-windows;$(NetCoreAppCurrent)-Linux</TargetFrameworks>
+    <StringResourcesPath>../../src/Resources/Strings.resx</StringResourcesPath>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <!-- Do not reference these assemblies from the TargetingPack since we are building part of the source code for tests. -->
+  <ItemGroup>
+    <DefaultReferenceExclusion Include="System.Net.Quic" />
+  </ItemGroup>
+  <!-- System files -->
+  <ItemGroup>
+    <Compile Include="**\*.cs" />
+    <Compile Include="..\..\src\Resources\*.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicClientConnectionOptions.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicConnection.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicConnectionAbortedException.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicException.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicListener.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicListenerOptions.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicOperationAbortedException.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicOptions.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicStream.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicStreamAbortedException.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\Implementations\Managed\**\*.cs" Link="System\Net\Quic\Implementations\Managed\*" />
+    <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicImplementationProvider.cs" Link="System\Net\Quic\Implementations\QuicImplementationProvider.cs"/>
+    <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicListenerProvider.cs" Link="System\Net\Quic\Implementations\QuicListenerProvider.cs"/>
+    <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicStreamProvider.cs" Link="System\Net\Quic\Implementations\QuicStreamProvider.cs"/>
+    <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicConnectionProvider.cs" Link="System\Net\Quic\Implementations\QuicConnectionProvider.cs"/>
+  </ItemGroup>
+  <!-- System.Net common -->
+  <ItemGroup>
+    <Compile Include="$(CommonPath)System\Threading\Tasks\TaskToApm.cs" Link="Common\System\Threading\Tasks\TaskToApm.cs" />
+    <Compile Include="$(CommonPath)System\Net\ArrayBuffer.cs" Link="Common\System\Net\ArrayBuffer.cs" />
+    <Compile Include="$(CommonPath)System\Net\MultiArrayBuffer.cs" Link="Common\System\Net\MultiArrayBuffer.cs" />
+    <Compile Include="$(CommonPath)System\Net\StreamBuffer.cs" Link="Common\System\Net\StreamBuffer.cs" />
+    <Compile Include="$(CommonPath)System\Net\Logging\NetEventSource.Common.cs" Link="Common\System\Net\Logging\NetEventSource.Common.cs" />
+  </ItemGroup>
+  <!-- Windows specific files -->
+  <ItemGroup Condition=" '$(TargetsWindows)' == 'true'">
+    <Compile Include="$(CommonPath)Interop\Windows\Interop.Libraries.cs" Link="Common\Interop\Windows\Interop.Libraries.cs" />
+  </ItemGroup>
+  <!-- Linux specific files -->
+  <ItemGroup Condition="'$(TargetsLinux)' == 'true' or '$(TargetsBrowser)' == 'true' ">
+    <Compile Include="$(CommonPath)Interop\Linux\Interop.Libraries.cs" Link="Common\Interop\Linux\Interop.Libraries.cs" />
+  </ItemGroup>
+  <!-- FreeBSD specific files -->
+  <ItemGroup Condition="'$(TargetsFreeBSD)' == 'true' ">
+    <Compile Include="$(CommonPath)Interop\FreeBSD\Interop.Libraries.cs" Link="Common\Interop\FreeBSD\Interop.Libraries.cs" />
+  </ItemGroup>
+  <!-- OSX specific files -->
+  <ItemGroup Condition=" '$(TargetsOSX)' == 'true' or '$(TargetsiOS)' == 'true' or '$(TargetstvOS)' == 'true'">
+    <Compile Include="$(CommonPath)Interop\OSX\Interop.Libraries.cs" Link="Common\Interop\OSX\Interop.Libraries.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\certs\cert.crt">
+      <Link>Certs\cert.crt</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\certs\cert.key">
+      <Link>Certs\cert.key</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

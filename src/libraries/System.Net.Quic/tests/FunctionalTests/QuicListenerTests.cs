@@ -515,4 +515,10 @@ namespace System.Net.Quic.Tests
             await Assert.ThrowsAsync<AuthenticationException>(() => connectTask.AsTask().WaitAsync(timeoutToken));
         }
     }
+
+    [ConditionalClass(typeof(QuicTestBase<ManagedQuicProviderFactory>), nameof(QuicTestBase<ManagedQuicProviderFactory>.IsSupported))]
+    public sealed class QuicListenerTests_ManagedQuicProvider : QuicListenerTests<ManagedQuicProviderFactory>
+    {
+        public QuicListenerTests_ManagedQuicProvider(ITestOutputHelper output) : base(output) { }
+    }
 }

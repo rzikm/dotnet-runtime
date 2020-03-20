@@ -423,4 +423,10 @@ namespace System.Net.Quic.Tests
             Assert.Throws<ArgumentOutOfRangeException>(() => QuicConnection.ConnectAsync(options));
         }
     }
+
+    [ConditionalClass(typeof(QuicTestBase<ManagedQuicProviderFactory>), nameof(QuicTestBase<ManagedQuicProviderFactory>.IsSupported))]
+    public sealed class QuicConnectionTests_ManagedQuicProvider : QuicConnectionTests<ManagedQuicProviderFactory>
+    {
+        public QuicConnectionTests_ManagedQuicProvider(ITestOutputHelper output) : base(output) { }
+    }
 }

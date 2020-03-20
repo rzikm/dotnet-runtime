@@ -33,6 +33,21 @@ namespace System.Net.Quic.Tests
             }
             base.Dispose(disposing);
         }
+    [ConditionalClass(typeof(QuicTestBase<ManagedQuicProviderFactory>), nameof(QuicTestBase<ManagedQuicProviderFactory>.IsSupported))]
+    [Collection(nameof(DisableParallelization))]
+    public sealed class ManagedQuicQuicStreamConformanceTests : QuicStreamConformanceTests
+    {
+        protected override QuicImplementationProvider Provider => new ManagedQuicProviderFactory().GetProvider();
+        protected override bool UsableAfterCanceledReads => false;
+        protected override bool BlocksOnZeroByteReads => true;
+        protected override bool CanTimeout => true;
+
+        public ManagedQuicQuicStreamConformanceTests(ITestOutputHelper output)
+        {
+            _output = output;
+        }
+    }
+
 
         public bool RemoteCertificateValidationCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
