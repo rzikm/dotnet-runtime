@@ -6,6 +6,7 @@
 #include "openssl.h"
 
 #include <assert.h>
+#include <openssl/ssl.h>
 #include <string.h>
 #include <stdbool.h>
 
@@ -538,4 +539,79 @@ int32_t CryptoNative_SslGetCurrentCipherId(SSL* ssl, int32_t* cipherId)
     *cipherId = SSL_CIPHER_get_id(cipher) & 0xFFFF;
 
     return 1;
+}
+
+c_static_assert(PAL_SSL_ENCRYPTION_INITIAL == ssl_encryption_initial);
+
+static OSSL_ENCRYPTION_LEVEL EncryptionLevelNativeToOSSL(EncryptionLevel level)
+{
+    switch (level)
+    {
+        case PAL_SSL_ENCRYPTION_INITIAL: return ssl_encryption_initial;
+        case PAL_SSL_ENCRYPTION_EARLY_DATA: return ssl_encryption_early_data;
+        case PAL_SSL_ENCRYPTION_HANDSHAKE: return ssl_encryption_handshake;
+        case PAL_SSL_ENCRYPTION_APPLICATION: return ssl_encryption_application;
+    }
+
+    return (OSSL_ENCRYPTION_LEVEL) level;
+}
+
+static EncryptionLevel EncryptionLevelOSSLToNative(OSSL_ENCRYPTION_LEVEL level)
+{
+    switch (level)
+    {
+        case ssl_encryption_initial: return PAL_SSL_ENCRYPTION_INITIAL;
+        case ssl_encryption_early_data: return PAL_SSL_ENCRYPTION_EARLY_DATA;
+        case ssl_encryption_handshake: return PAL_SSL_ENCRYPTION_HANDSHAKE;
+        case ssl_encryption_application: return PAL_SSL_ENCRYPTION_APPLICATION;
+    }
+
+    return (EncryptionLevel) level;
+}
+
+int32_t CryptoNative_SslSetQuicMethod(SSL* ssl, const struct ssl_quic_method_st* quic_method)
+{
+    return (int32_t)SSL_set_quic_method(ssl, quic_method);
+}
+
+int32_t CryptoNative_SslSetQuicTrasportParams(SSL* ssl, const uint8_t* params, uint32_t params_len)
+{
+    return (int32_t)SSL_set_quic_transport_params(ssl, params, params_len);
+}
+
+void CryptoNative_SslGetPeerQuicTransportParams(const SSL* ssl, const uint8_t** out_params, uint32_t* out_params_len)
+{
+    size_t len;
+    SSL_get_peer_quic_transport_params(ssl, out_params, &len);
+    *out_params_len = (uint32_t)len;
+}
+
+uint32_t CryptoNative_SslQuicMaxHandshakeFlightLen(const SSL* ssl, EncryptionLevel level)
+{
+    return (uint32_t)SSL_quic_max_handshake_flight_len(ssl, EncryptionLevelNativeToOSSL(level));
+}
+
+EncryptionLevel CryptoNative_SslQuicReadLevel(const SSL* ssl)
+{
+    return EncryptionLevelOSSLToNative(SSL_quic_read_level(ssl));
+}
+
+EncryptionLevel CryptoNative_SslQuicWriteLevel(const SSL* ssl)
+{
+    return EncryptionLevelOSSLToNative(SSL_quic_write_level(ssl));
+}
+
+int32_t CryptoNative_SslProvideQuicData(SSL* ssl, EncryptionLevel level, const uint8_t* data, uint32_t len)
+{
+    return (int32_t)SSL_provide_quic_data(ssl, EncryptionLevelNativeToOSSL(level), data, len);
+}
+
+int32_t CryptoNative_SslProcessQuicPostHandshake(SSL* ssl)
+{
+    return (int32_t)SSL_process_quic_post_handshake(ssl);
+}
+
+int32_t CryptoNative_SslIsQuic(SSL* ssl)
+{
+    return (int32_t)SSL_is_quic(ssl);
 }

@@ -573,6 +573,18 @@ void SSL_get0_alpn_selected(const SSL* ssl, const unsigned char** protocol, unsi
     LIGHTUP_FUNCTION(EC_GROUP_set_curve_GF2m) \
     LIGHTUP_FUNCTION(EC_POINT_get_affine_coordinates_GF2m) \
     LIGHTUP_FUNCTION(EC_POINT_set_affine_coordinates_GF2m) \
+    REQUIRED_FUNCTION(X509_VERIFY_PARAM_set_time) \
+    REQUIRED_FUNCTION(SSL_set_quic_transport_params) \
+    REQUIRED_FUNCTION(SSL_set_quic_method) \
+    REQUIRED_FUNCTION(SSL_get_peer_quic_transport_params) \
+    REQUIRED_FUNCTION(SSL_process_quic_post_handshake) \
+    REQUIRED_FUNCTION(SSL_quic_max_handshake_flight_len) \
+    REQUIRED_FUNCTION(SSL_provide_quic_data) \
+    REQUIRED_FUNCTION(SSL_is_quic) \
+    REQUIRED_FUNCTION(SSL_quic_read_level) \
+    REQUIRED_FUNCTION(SSL_quic_write_level)
+
+
 
 // Declare pointers to all the used OpenSSL functions
 #define REQUIRED_FUNCTION(fn) extern __typeof(fn)* fn##_ptr;
@@ -970,6 +982,15 @@ FOR_ALL_OPENSSL_FUNCTIONS
 #define EC_GROUP_set_curve_GF2m EC_GROUP_set_curve_GF2m_ptr
 #define EC_POINT_get_affine_coordinates_GF2m EC_POINT_get_affine_coordinates_GF2m_ptr
 #define EC_POINT_set_affine_coordinates_GF2m EC_POINT_set_affine_coordinates_GF2m_ptr
+#define SSL_set_quic_transport_params SSL_set_quic_transport_params_ptr
+#define SSL_set_quic_method SSL_set_quic_method_ptr
+#define SSL_get_peer_quic_transport_params SSL_get_peer_quic_transport_params_ptr
+#define SSL_process_quic_post_handshake SSL_process_quic_post_handshake_ptr
+#define SSL_quic_max_handshake_flight_len SSL_quic_max_handshake_flight_len_ptr
+#define SSL_provide_quic_data SSL_provide_quic_data_ptr
+#define SSL_is_quic SSL_is_quic_ptr
+#define SSL_quic_read_level SSL_quic_read_level_ptr
+#define SSL_quic_write_level SSL_quic_write_level_ptr
 
 
 // STACK_OF types will have been declared with inline functions to handle the pointer casting.

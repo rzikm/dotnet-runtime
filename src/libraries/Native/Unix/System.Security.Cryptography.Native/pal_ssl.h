@@ -5,6 +5,7 @@
 #include "pal_crypto_types.h"
 #include "pal_compiler.h"
 #include "opensslshim.h"
+#include <openssl/ossl_typ.h>
 
 /*
 These values should be kept in sync with System.Security.Authentication.SslProtocols.
@@ -110,6 +111,14 @@ typedef enum
     PAL_SSL_ERROR_SYSCALL = 5,
     PAL_SSL_ERROR_ZERO_RETURN = 6,
 } SslErrorCode;
+
+typedef enum
+{
+    PAL_SSL_ENCRYPTION_INITIAL = 0,
+    PAL_SSL_ENCRYPTION_EARLY_DATA = 1,
+    PAL_SSL_ENCRYPTION_HANDSHAKE = 2,
+    PAL_SSL_ENCRYPTION_APPLICATION = 3
+} EncryptionLevel;
 
 // the function pointer definition for the callback used in SslCtxSetVerify
 typedef int32_t (*SslCtxSetVerifyCallback)(int32_t, X509_STORE_CTX*);
@@ -398,3 +407,48 @@ Looks up a cipher by the IANA identifier, returns a shared string for the OpenSS
 and emits a value indicating if the cipher belongs to the SSL2-TLS1.2 list, or the TLS1.3+ list.
 */
 PALEXPORT const char* CryptoNative_GetOpenSslCipherSuiteName(SSL* ssl, int32_t cipherSuite, int32_t* isTls12OrLower);
+
+/*
+Shims the SSL_set_quic_method method method.
+*/
+PALEXPORT int32_t CryptoNative_SslSetQuicMethod(SSL* ssl, const struct ssl_quic_method_st* quic_method);
+
+/*
+Shims the SSL_set_quic_transport_params method.
+*/
+PALEXPORT int32_t CryptoNative_SslSetQuicTrasportParams(SSL* ssl, const uint8_t* params, uint32_t params_len);
+
+/*
+Shims the SSL_get_peer_quic_transport_params method.
+*/
+PALEXPORT void CryptoNative_SslGetPeerQuicTransportParams(const SSL* ssl, const uint8_t** out_params, uint32_t* out_params_len);
+
+/*
+Shims the SSL_quic_max_handshake_flight_len method.
+*/
+PALEXPORT uint32_t CryptoNative_SslQuicMaxHandshakeFlightLen(const SSL* ssl, EncryptionLevel level);
+
+/*
+Shims the SSL_quic_read_level method.
+*/
+PALEXPORT EncryptionLevel CryptoNative_SslQuicReadLevel(const SSL* ssl);
+
+/*
+Shims the SSL_quic_write_level method.
+*/
+PALEXPORT EncryptionLevel CryptoNative_SslQuicWriteLevel(const SSL* ssl);
+
+/*
+Shims the SSL_provide_quic_data method.
+*/
+PALEXPORT int32_t CryptoNative_SslProvideQuicData(SSL* ssl, EncryptionLevel level, const uint8_t* data, uint32_t len);
+
+/*
+Shims the SSL_process_quic_post_handshake method.
+*/
+PALEXPORT int32_t CryptoNative_SslProcessQuicPostHandshake(SSL* ssl);
+
+/*
+Shims the SSL_is_quic method.
+*/
+PALEXPORT int32_t CryptoNative_SslIsQuic(SSL* ssl);

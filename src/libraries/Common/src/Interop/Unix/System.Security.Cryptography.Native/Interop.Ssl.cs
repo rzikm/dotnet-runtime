@@ -146,6 +146,49 @@ internal static partial class Interop
         private static extern bool Tls13SupportedImpl();
         internal static readonly bool Tls13Supported = Tls13SupportedImpl();
 
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslSetQuicMethod")]
+        internal static extern int SslSetQuicMethod(SafeSslHandle ssl, ref QuicMethods quic_method);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslSetQuicTrasportParams")]
+        internal static extern unsafe int SslSetQuicTrasportParams(SafeSslHandle ssl, byte* param, int params_len);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslGetPeerQuicTransportParams")]
+        internal static extern unsafe void SslGetPeerQuicTransportParams(SafeSslHandle ssl, byte** out_params, int* out_params_len);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslQuicMaxHandshakeFlightLen")]
+        internal static extern uint SslQuicMaxHandshakeFlightLen(SafeSslHandle ssl, int level);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslQuicReadLevel")]
+        internal static extern int SslQuicReadLevel(SafeSslHandle ssl);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslQuicWriteLevel")]
+        internal static extern int SslQuicWriteLevel(SafeSslHandle ssl);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslProvideQuicData")]
+        internal static extern unsafe int SslProvideQuicData(SafeSslHandle ssl, int level, byte* data, int len);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslProcessQuicPostHandshake")]
+        internal static extern int SslProcessQuicPostHandshake(SafeSslHandle ssl);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslIsQuic")]
+        internal static extern int SslIsQuic(SafeSslHandle ssl);
+
+        internal struct QuicMethods
+        {
+            public QuicMethods(IntPtr setEncryptionSecrets, IntPtr addHandshakeData, IntPtr flushFlight, IntPtr sendAlert)
+            {
+                this.setEncryptionSecrets = setEncryptionSecrets;
+                this.addHandshakeData = addHandshakeData;
+                this.flushFlight = flushFlight;
+                this.sendAlert = sendAlert;
+            }
+
+            public IntPtr setEncryptionSecrets;
+            public IntPtr addHandshakeData;
+            public IntPtr flushFlight;
+            public IntPtr sendAlert;
+        }
+
         internal static SafeSharedX509NameStackHandle SslGetClientCAList(SafeSslHandle ssl)
         {
             Crypto.CheckValidOpenSslHandle(ssl);

@@ -8,7 +8,7 @@ internal static partial class Interop
     // TODO-RZ: remove this and use System.Security.Cryptography.Native
     internal static unsafe partial class OpenSsl
     {
-        [DllImport(Interop.Libraries.Crypto)]
+        [DllImport(Libraries.Crypto)]
         internal static extern int CRYPTO_get_ex_new_index(int classIndex, long argl, IntPtr argp, IntPtr newFunc,
             IntPtr dupFunc, IntPtr freeFunc);
 
