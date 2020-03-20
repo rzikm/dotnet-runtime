@@ -207,6 +207,7 @@
              Link="Common\System\Net\Http\HttpProtocolTests.cs" />
     <Compile Include="HttpRequestMessageTest.cs" />
     <Compile Include="HttpResponseMessageTest.cs" />
+    <Compile Include="QuicTestBase.cs" />
     <Compile Include="MsQuicTestBase.cs" />
     <Compile Include="MsQuicTests.cs" />
     <Compile Include="MessageProcessingHandlerTest.cs" />
