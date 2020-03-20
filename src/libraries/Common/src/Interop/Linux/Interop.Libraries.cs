@@ -8,7 +8,11 @@ internal static partial class Interop
     {
         internal const string Odbc32 = "libodbc.so.2";
         internal const string MsQuic = "msquic";
-        internal const string OpenSslQuic = "libssl-quic.so.1.1";
-        internal const string CryptoQuic = "libcrypto-quic.so.1.1";
+
+        // TODO-RZ : use locally built libs from akamai-openssl-quic
+        // internal const string Ssl = "libssl-quic.so.1.1";
+        // internal const string Crypto = "libcrypto-quic.so.1.1";
+        internal const string Ssl = "/usr/local/lib/libssl.so";
+        internal const string Crypto = "/usr/local/lib/libcrypto.so";
     }
 }
