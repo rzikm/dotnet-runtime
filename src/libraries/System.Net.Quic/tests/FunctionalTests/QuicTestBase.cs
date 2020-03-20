@@ -411,4 +411,10 @@ namespace System.Net.Quic.Tests
             }
         }
     }
+
+    public sealed class ManagedQuicProviderFactory : IQuicImplProviderFactory
+    {
+        // Use MockTls due to lack of modified OpenSSL
+        public QuicImplementationProvider GetProvider() => QuicImplementationProviders.ManagedMockTls;
+    }
 }

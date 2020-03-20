@@ -1209,4 +1209,11 @@ namespace System.Net.Quic.Tests
             );
         }
     }
+
+    [ConditionalClass(typeof(QuicTestBase<ManagedQuicProviderFactory>), nameof(QuicTestBase<ManagedQuicProviderFactory>.IsSupported))]
+    [Collection(nameof(DisableParallelization))]
+    public sealed class QuicStreamTests_ManagedQuicProvider : QuicStreamTests<ManagedQuicProviderFactory>
+    {
+        public QuicStreamTests_ManagedQuicProvider(ITestOutputHelper output) : base(output) { }
+    }
 }

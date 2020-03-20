@@ -21,6 +21,8 @@
   </ItemGroup>
   <!-- Source files -->
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' != ''">
+    <Compile Include="System\Net\Quic\Implementations\Managed\*.cs" />
+    <Compile Include="System\Net\Quic\Implementations\Managed\Internal\**\*.cs" />
     <Compile Include="System\Net\Quic\**\*.cs" Exclude="System\Net\Quic\*.Unsupported.cs"/>
     <!-- System.Net common -->
     <Compile Include="$(CommonPath)DisableRuntimeMarshalling.cs" Link="Common\DisableRuntimeMarshalling.cs" />
@@ -103,7 +105,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="Microsoft.Win32.Primitives" />
+    <PackageReference Include="System.Net.MsQuic.Transport"
     <Reference Include="System.Collections" />
     <Reference Include="System.Collections.Concurrent" />
     <Reference Include="System.Collections.NonGeneric" />
@@ -119,6 +121,9 @@
     <Reference Include="System.Security.Cryptography" />
     <Reference Include="System.Threading" />
     <Reference Include="System.Threading.Channels" />
+    <!-- Managed QUIC only:-->
+    <Reference Include="System.Collections.Immutable" />
+    <Reference Include="System.Text.Json" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'windows'">
@@ -135,9 +140,9 @@
   </ItemGroup>
 
   <!-- Support for deploying msquic on Windows. We make msquic.dll part of runtime binaries: either from official releases or our transport feed. -->
-  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'windows' and
+  <ItemGroup Condition="'$(TargetsWindows)' == 'true' and
                         '$(TargetOS)' == 'windows' and
-                        ('$(TargetArchitecture)' == 'x64' or '$(TargetArchitecture)' == 'x86' or '$(TargetArchitecture)' == 'arm64') and
+                        ('$(TargetArchitecture)' == 'x64' or '$(TargetArchitecture)' == 'x86') and '$(DotNetBuildFromSource)' != 'true'">
                         '$(DotNetBuildFromSource)' != 'true'">
 
     <!-- Project references -->
@@ -197,5 +202,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="C:\source\runtime\src\libraries\System.Net.Quic\src\System\Net\Quic\Implementations\Managed\Internal\Interop.OpenSsl.cs" />
   </ItemGroup>
 </Project>
