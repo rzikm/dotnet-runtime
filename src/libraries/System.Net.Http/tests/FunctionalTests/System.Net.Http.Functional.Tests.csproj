@@ -206,6 +206,12 @@
     <Compile Include="$(CommonTestPath)System\Threading\Tasks\TaskTimeoutExtensions.cs">
       <Link>Common\System\Threading\Tasks\TaskTimeoutExtensions.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\ConnectionId.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\ConnectionId.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\ConnectionIdCollection.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\ConnectionIdCollection.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Crypto\CipherAlgorithm.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Crypto\CipherAlgorithm.cs</Link>
     </Compile>
@@ -229,6 +235,9 @@
     </Compile>
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Crypto\QuicEncoding.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Crypto\QuicEncoding.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\EpochData.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\EpochData.cs</Link>
     </Compile>
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Frames\AckFrame.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Frames\AckFrame.cs</Link>
@@ -284,6 +293,27 @@
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\HeaderHelpers.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\HeaderHelpers.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\LongPacketHeader.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\LongPacketHeader.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\RetryPacketData.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\RetryPacketData.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\SharedPacketData.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\SharedPacketData.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\ShortPacketHeader.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\ShortPacketHeader.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\VersionNegotiationPacketData.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Headers\VersionNegotiationPacketData.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\PacketType.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\PacketType.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\PreferredAddress.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\PreferredAddress.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\QuicPrimitives.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\QuicPrimitives.cs</Link>
     </Compile>
@@ -293,17 +323,17 @@
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\QuicReaderWriterExtensions.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\QuicReaderWriterExtensions.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\QuicVersion.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\QuicVersion.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\QuicWriter.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\QuicWriter.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\RangeSet.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\RangeSet.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\TransportErrorCode.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\TransportErrorCode.cs</Link>
-    </Compile>
-    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\TransportParameter.cs">
-      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\TransportParameter.cs</Link>
-    </Compile>
-    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Handshake.cs">
-      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\Handshake.cs</Link>
     </Compile>
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\IQuicCallback.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\IQuicCallback.cs</Link>
@@ -341,6 +371,12 @@
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\SslEncryptionLevel.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\SslEncryptionLevel.cs</Link>
     </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\TransportParameterName.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\TransportParameterName.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\TransportParameters.cs">
+      <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\Internal\TransportParameters.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Implementations\Managed\ManagedQuicConnection.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Implementations\Managed\ManagedQuicConnection.cs</Link>
     </Compile>
@@ -356,8 +392,8 @@
     <Compile Include="..\..\..\Common\src\System\Net\Http\aspnetcore\Quic\Interop\OpenSslQuicMethods.cs">
       <Link>Common\System\Net\Http\aspnetcore\Quic\Interop\OpenSslQuicMethods.cs</Link>
     </Compile>
-    <Compile Include="AssemblyInfo.cs" />
-    <Compile Include="ByteArrayContentTest.cs" />
+    <Compile Include="AssemblyInfo.cs"/>
+    <Compile Include="ByteArrayContentTest.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\ChannelBindingAwareContent.cs">
       <Link>Common\System\Net\Http\ChannelBindingAwareContent.cs</Link>
     </Compile>
@@ -367,9 +403,9 @@
     <Compile Include="$(CommonTestPath)System\Net\Http\CustomContent.cs">
       <Link>Common\System\Net\Http\CustomContent.cs</Link>
     </Compile>
-    <Compile Include="DelegatingHandlerTest.cs" />
-    <Compile Include="FakeDiagnosticSourceListenerObserver.cs" />
-    <Compile Include="FormUrlEncodedContentTest.cs" />
+    <Compile Include="DelegatingHandlerTest.cs"/>
+    <Compile Include="FakeDiagnosticSourceListenerObserver.cs"/>
+    <Compile Include="FormUrlEncodedContentTest.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\ByteAtATimeContent.cs">
       <Link>Common\System\Net\Http\ByteAtATimeContent.cs</Link>
     </Compile>
@@ -397,9 +433,9 @@
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.DefaultProxyCredentials.cs">
       <Link>Common\System\Net\Http\HttpClientHandlerTest.DefaultProxyCredentials.cs</Link>
     </Compile>
-    <Compile Include="HttpClientHandlerTest.AltSvc.cs" />
-    <Compile Include="HttpClientHandlerTest.Finalization.cs" />
-    <Compile Include="HttpClientHandlerTest.Headers.cs" />
+    <Compile Include="HttpClientHandlerTest.AltSvc.cs"/>
+    <Compile Include="HttpClientHandlerTest.Finalization.cs"/>
+    <Compile Include="HttpClientHandlerTest.Headers.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.MaxConnectionsPerServer.cs">
       <Link>Common\System\Net\Http\HttpClientHandlerTest.MaxConnectionsPerServer.cs</Link>
     </Compile>
@@ -409,28 +445,28 @@
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.Proxy.cs">
       <Link>Common\System\Net\Http\HttpClientHandlerTest.Proxy.cs</Link>
     </Compile>
-    <Compile Include="HttpClientHandlerTest.Http3.cs" />
+    <Compile Include="HttpClientHandlerTest.Http3.cs"/>
 
-    <Compile Include="HttpClientHandlerTest.ResponseDrain.cs" />
+    <Compile Include="HttpClientHandlerTest.ResponseDrain.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.ServerCertificates.cs">
       <Link>Common\System\Net\Http\HttpClientHandlerTest.ServerCertificates.cs</Link>
     </Compile>
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.SslProtocols.cs">
       <Link>Common\System\Net\Http\HttpClientHandlerTest.SslProtocols.cs</Link>
     </Compile>
-    <Compile Include="HttpClientHandlerTestBase.SocketsHttpHandler.cs" />
-    <Compile Include="DiagnosticsTests.cs" />
-    <Compile Include="HttpClientTest.cs" />
+    <Compile Include="HttpClientHandlerTestBase.SocketsHttpHandler.cs"/>
+    <Compile Include="DiagnosticsTests.cs"/>
+    <Compile Include="HttpClientTest.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientEKUTest.cs">
       <Link>Common\System\Net\Http\HttpClientEKUTest.cs</Link>
     </Compile>
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClient.SelectedSitesTest.cs">
       <Link>Common\System\Net\Http\HttpClient.SelectedSitesTest.cs</Link>
     </Compile>
-    <Compile Include="HttpConnectionKeyTest.cs" />
-    <Compile Include="HttpContentTest.cs" />
-    <Compile Include="HttpMessageInvokerTest.cs" />
-    <Compile Include="HttpMethodTest.cs" />
+    <Compile Include="HttpConnectionKeyTest.cs"/>
+    <Compile Include="HttpContentTest.cs"/>
+    <Compile Include="HttpMessageInvokerTest.cs"/>
+    <Compile Include="HttpMethodTest.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpRetryProtocolTests.cs">
       <Link>Common\System\Net\Http\HttpRetryProtocolTests.cs</Link>
     </Compile>
@@ -440,20 +476,20 @@
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpProtocolTests.cs">
       <Link>Common\System\Net\Http\HttpProtocolTests.cs</Link>
     </Compile>
-    <Compile Include="HttpRequestMessageTest.cs" />
-    <Compile Include="HttpResponseMessageTest.cs" />
-    <Compile Include="QuicTestBase.cs" />
-    <Compile Include="MsQuicTestBase.cs" />
-    <Compile Include="MsQuicTests.cs" />
-    <Compile Include="MessageProcessingHandlerTest.cs" />
-    <Compile Include="MultipartContentTest.cs" />
-    <Compile Include="MultipartFormDataContentTest.cs" />
+    <Compile Include="HttpRequestMessageTest.cs"/>
+    <Compile Include="HttpResponseMessageTest.cs"/>
+    <Compile Include="QuicTestBase.cs"/>
+    <Compile Include="MsQuicTestBase.cs"/>
+    <Compile Include="MsQuicTests.cs"/>
+    <Compile Include="MessageProcessingHandlerTest.cs"/>
+    <Compile Include="MultipartContentTest.cs"/>
+    <Compile Include="MultipartFormDataContentTest.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\PostScenarioTest.cs">
       <Link>Common\System\Net\Http\PostScenarioTest.cs</Link>
     </Compile>
-    <Compile Include="QuicConnectionTests.cs" />
-    <Compile Include="QuicListenerTests.cs" />
-    <Compile Include="QuicStreamTests.cs" />
+    <Compile Include="QuicConnectionTests.cs"/>
+    <Compile Include="QuicListenerTests.cs"/>
+    <Compile Include="QuicStreamTests.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\RepeatedFlushContent.cs">
       <Link>Common\System\Net\Http\RepeatedFlushContent.cs</Link>
     </Compile>
@@ -463,16 +499,16 @@
     <Compile Include="$(CommonTestPath)System\Net\Http\SchSendAuxRecordHttpTest.cs">
       <Link>Common\System\Net\Http\SchSendAuxRecordHttpTest.cs</Link>
     </Compile>
-    <Compile Include="StreamContentTest.cs" />
-    <Compile Include="StringContentTest.cs" />
+    <Compile Include="StreamContentTest.cs"/>
+    <Compile Include="StringContentTest.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\SyncBlockingContent.cs">
       <Link>Common\System\Net\Http\SyncBlockingContent.cs</Link>
     </Compile>
     <Compile Include="$(CommonTestPath)System\Net\Http\DefaultCredentialsTest.cs">
       <Link>Common\System\Net\Http\DefaultCredentialsTest.cs</Link>
     </Compile>
-    <Compile Include="ThrowingContent.cs" />
-    <Compile Include="Watchdog.cs" />
+    <Compile Include="ThrowingContent.cs"/>
+    <Compile Include="Watchdog.cs"/>
   </ItemGroup>
   <!-- Windows specific files -->
   <ItemGroup Condition=" '$(TargetsWindows)' == 'true'">
@@ -493,20 +529,20 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CustomContent.netcore.cs" />
-    <Compile Include="HPackTest.cs" />
-    <Compile Include="HttpClientHandlerTest.Http1.cs" />
-    <Compile Include="HttpClientHandlerTest.Http2.cs" />
+    <Compile Include="CustomContent.netcore.cs"/>
+    <Compile Include="HPackTest.cs"/>
+    <Compile Include="HttpClientHandlerTest.Http1.cs"/>
+    <Compile Include="HttpClientHandlerTest.Http2.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.AcceptAllCerts.cs">
       <Link>Common\System\Net\Http\HttpClientHandlerTest.AcceptAllCerts.cs</Link>
     </Compile>
     <Compile Include="$(CommonTestPath)System\Net\Http\HttpClientHandlerTest.Decompression.cs">
       <Link>Common\System\Net\Http\HttpClientHandlerTest.Decompression.cs</Link>
     </Compile>
-    <Compile Include="HttpClientMiniStressTest.cs" />
-    <Compile Include="NtAuthTests.cs" />
-    <Compile Include="ReadOnlyMemoryContentTest.cs" />
-    <Compile Include="SocketsHttpHandlerTest.cs" />
+    <Compile Include="HttpClientMiniStressTest.cs"/>
+    <Compile Include="NtAuthTests.cs"/>
+    <Compile Include="ReadOnlyMemoryContentTest.cs"/>
+    <Compile Include="SocketsHttpHandlerTest.cs"/>
     <Compile Include="$(CommonTestPath)System\Net\Http\Http2Frames.cs">
       <Link>Common\System\Net\Http\Http2Frames.cs</Link>
     </Compile>
@@ -542,7 +578,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.Net.TestData" Version="$(SystemNetTestDataVersion)" />
+    <PackageReference Include="System.Net.TestData" Version="$(SystemNetTestDataVersion)"/>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="SelectedSitesTest.txt">
