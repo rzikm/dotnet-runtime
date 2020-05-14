@@ -72,12 +72,13 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
 
     internal enum QUIC_PARAM_LEVEL : uint
     {
-        REGISTRATION = 0,
-        SESSION = 1,
-        LISTENER = 2,
-        CONNECTION = 3,
-        TLS = 4,
-        STREAM = 5,
+        GLOBAL = 0,
+        REGISTRATION = 1,
+        SESSION = 2,
+        LISTENER = 3,
+        CONNECTION = 4,
+        TLS = 5,
+        STREAM = 6,
     }
 
     internal enum QUIC_PARAM_REGISTRATION : uint

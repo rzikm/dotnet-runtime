@@ -6,6 +6,7 @@
 using System.IO;
 using System.Net.Quic.Implementations.MsQuic.Internal;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -295,7 +296,9 @@ namespace System.Net.Quic.Implementations.MsQuic
             QuicExceptionHelpers.ThrowIfFailed(
                 MsQuicApi.Api.ConnectionStartDelegate(
                 _ptr,
-                (ushort)_remoteEndPoint.AddressFamily,
+                _remoteEndPoint.AddressFamily == AddressFamily.InterNetwork
+                    ? MsQuicAddressHelpers.IPv4
+                    : MsQuicAddressHelpers.IPv6,
                 _remoteEndPoint.Address.ToString(),
                 (ushort)_remoteEndPoint.Port),
                 "Failed to connect to peer.");

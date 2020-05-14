@@ -5,6 +5,7 @@
 #nullable enable
 using System.IO;
 using System.Net.Security;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -24,7 +25,7 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
 
             try
             {
-                uint status = Interop.MsQuic.MsQuicOpen(version: 1, out registration);
+                uint status = Interop.MsQuic.MsQuicOpen(out registration);
                 if (!MsQuicStatusHelper.SuccessfulStatusCode(status))
                 {
                     throw new NotSupportedException(SR.net_quic_notsupported);
@@ -124,7 +125,13 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
                 Marshal.GetDelegateForFunctionPointer<MsQuicNativeMethods.GetParamDelegate>(
                     nativeRegistration.GetParam);
 
-            RegistrationOpenDelegate(Encoding.UTF8.GetBytes("SystemNetQuic"), out IntPtr ctx);
+            MsQuicNativeMethods.RegistrationConfig config;
+            config.AppName = Marshal.StringToHGlobalUni("SystemNetQuic");
+            config.ExecutionProfile = 1; // LOW_LATENCY, default
+
+            RegistrationOpenDelegate(ref config, out IntPtr ctx);
+            Marshal.FreeHGlobal(config.AppName);
+
             _registrationContext = ctx;
         }
 
@@ -315,19 +322,27 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
             return secConfig;
         }
 
-        public IntPtr SessionOpen(byte[] alpn)
+        public unsafe IntPtr SessionOpen(byte[] alpn)
         {
             IntPtr sessionPtr = IntPtr.Zero;
 
+            MsQuicNativeMethods.QuicBuffer alpnBuffer;
+            fixed (byte* alpnBytes = alpn)
+            {
+                alpnBuffer.Buffer = alpnBytes;
+                alpnBuffer.Length = (uint) alpn.Length;
+            }
+
             uint status = SessionOpenDelegate(
                 _registrationContext,
-                alpn,
+                (MsQuicNativeMethods.QuicBuffer*) Unsafe.AsPointer(ref alpnBuffer),
+                1,
                 IntPtr.Zero,
                 ref sessionPtr);
 
             QuicExceptionHelpers.ThrowIfFailed(status, "Could not open session.");
 
-            return sessionPtr;
+           return sessionPtr;
         }
 
         public void Dispose()

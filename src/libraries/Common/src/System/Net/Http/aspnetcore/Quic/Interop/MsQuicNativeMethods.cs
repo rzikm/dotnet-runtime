@@ -17,8 +17,6 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
         [StructLayout(LayoutKind.Sequential)]
         internal struct NativeApi
         {
-            internal uint Version;
-
             internal IntPtr SetContext;
             internal IntPtr GetContext;
             internal IntPtr SetCallbackHandler;
@@ -81,7 +79,14 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
             uint* bufferLength,
             byte* buffer);
 
-        internal delegate uint RegistrationOpenDelegate(byte[] appName, out IntPtr registrationContext);
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct RegistrationConfig
+        {
+            internal IntPtr AppName;
+            internal uint ExecutionProfile;
+        }
+
+        internal delegate uint RegistrationOpenDelegate(ref RegistrationConfig config, out IntPtr registrationContext);
 
         internal delegate void RegistrationCloseDelegate(IntPtr registrationContext);
 
@@ -100,7 +105,8 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
 
         internal delegate uint SessionOpenDelegate(
             IntPtr registrationContext,
-            byte[] utf8String,
+            QuicBuffer* alpnBuffers,
+            uint alpnBufferCount,
             IntPtr context,
             ref IntPtr session);
 
@@ -172,7 +178,9 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
         [StructLayout(LayoutKind.Sequential)]
         internal struct ConnectionEventDataConnected
         {
-            internal bool EarlyDataAccepted;
+            internal bool SessionResumed;
+            internal byte NegotiatedAlpnLength;
+            internal IntPtr NegotiatedAlpn;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -262,7 +270,6 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
             internal QUIC_CONNECTION_EVENT Type;
             internal ConnectionEventDataUnion Data;
 
-            internal bool EarlyDataAccepted => Data.Connected.EarlyDataAccepted;
             internal ulong NumBytes => Data.IdealSendBuffer.NumBytes;
             internal uint ShutdownBeginStatus => Data.ShutdownBegin.Status;
             internal long ShutdownBeginPeerStatus => Data.ShutdownBeginPeer.ErrorCode;
@@ -286,17 +293,17 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
         internal delegate uint ConnectionCloseDelegate(
             IntPtr connection);
 
+        internal delegate uint ConnectionShutdownDelegate(
+            IntPtr connection,
+            uint flags,
+            long errorCode);
+
         internal delegate uint ConnectionStartDelegate(
             IntPtr connection,
             ushort family,
             [MarshalAs(UnmanagedType.LPStr)]
             string serverName,
             ushort serverPort);
-
-        internal delegate uint ConnectionShutdownDelegate(
-            IntPtr connection,
-            uint flags,
-            long errorCode);
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct StreamEventDataRecv
@@ -445,12 +452,12 @@ namespace System.Net.Quic.Implementations.MsQuic.Internal
             IntPtr context,
             out IntPtr stream);
 
+        internal delegate uint StreamCloseDelegate(
+            IntPtr stream);
+
         internal delegate uint StreamStartDelegate(
             IntPtr stream,
             uint flags);
-
-        internal delegate uint StreamCloseDelegate(
-            IntPtr stream);
 
         internal delegate uint StreamShutdownDelegate(
             IntPtr stream,

@@ -50,6 +50,8 @@ namespace System.Net.Quic.Implementations.MsQuic
         private ReadState _readState;
         private long _readErrorCode = -1;
 
+        private bool _recvdFin;
+
         private ShutdownWriteState _shutdownState;
 
         private SendState _sendState;
@@ -240,7 +242,8 @@ namespace System.Net.Quic.Implementations.MsQuic
 
             lock (_sync)
             {
-                if (_readState == ReadState.ReadsCompleted)
+                if (_readState == ReadState.ReadsCompleted &&
+                    (!_recvdFin || _receiveQuicBuffers.Count == 0))
                 {
                     if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
                     return 0;
@@ -425,7 +428,7 @@ namespace System.Net.Quic.Implementations.MsQuic
         {
             ThrowIfDisposed();
 
-            return default!;
+            return Task.CompletedTask;
         }
 
         public override ValueTask DisposeAsync()
@@ -594,6 +597,11 @@ namespace System.Net.Quic.Implementations.MsQuic
                     shouldComplete = true;
                 }
                 _readState = ReadState.IndividualReadComplete;
+            }
+
+            if ((evt.Data.Recv.Flags & (ulong) QUIC_RECEIVE_FLAG.FIN) != 0)
+            {
+                _recvdFin = true;
             }
 
             if (shouldComplete)
