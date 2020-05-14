@@ -3,6 +3,7 @@
 
 namespace System.Net.Quic
 {
+
     internal class QuicConnectionAbortedException : QuicException
     {
         internal QuicConnectionAbortedException(long errorCode)

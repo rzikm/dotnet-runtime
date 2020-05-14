@@ -3,7 +3,13 @@
 
 namespace System.Net.Quic
 {
-    internal class QuicException : Exception
+
+#if WANT_QUIC_PUBLIC
+    public
+#else
+    internal
+#endif
+    class QuicException : Exception
     {
         public QuicException(string message)
             : base (message)

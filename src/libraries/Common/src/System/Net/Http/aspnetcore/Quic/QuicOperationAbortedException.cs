@@ -3,7 +3,13 @@
 
 namespace System.Net.Quic
 {
-    internal class QuicOperationAbortedException : QuicException
+
+#if WANT_QUIC_PUBLIC
+    public
+#else
+    internal
+#endif
+    class QuicOperationAbortedException : QuicException
     {
         internal QuicOperationAbortedException()
             : base(SR.net_quic_operationaborted)

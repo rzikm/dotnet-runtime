@@ -8,7 +8,12 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic
 {
-    internal sealed class QuicListener : IDisposable
+#if WANT_QUIC_PUBLIC
+    public
+#else
+    internal
+#endif
+    sealed class QuicListener : IDisposable
     {
         private readonly QuicListenerProvider _provider;
 
@@ -22,13 +27,22 @@ namespace System.Net.Quic
         {
         }
 
+        /// <summary>
+        /// Create a QUIC listener with the provided options.
+        /// </summary>
+        /// <param name="options">The listener options.</param>
+        public QuicListener(QuicListenerOptions options)
+            : this(QuicImplementationProviders.Default, options)
+        {
+        }
+
         // !!! TEMPORARY: Remove "implementationProvider" before shipping
-        public QuicListener(QuicImplementationProvider implementationProvider, IPEndPoint listenEndPoint, SslServerAuthenticationOptions sslServerAuthenticationOptions)
+        internal QuicListener(QuicImplementationProvider implementationProvider, IPEndPoint listenEndPoint, SslServerAuthenticationOptions sslServerAuthenticationOptions)
             : this(implementationProvider,  new QuicListenerOptions() { ListenEndPoint = listenEndPoint, ServerAuthenticationOptions = sslServerAuthenticationOptions })
         {
         }
 
-        public QuicListener(QuicImplementationProvider implementationProvider, QuicListenerOptions options)
+        internal QuicListener(QuicImplementationProvider implementationProvider, QuicListenerOptions options)
         {
             _provider = implementationProvider.CreateListener(options);
         }
