@@ -127,3 +127,4 @@ else ()
 endif ()
 
 add_subdirectory(clrcompression)
+add_subdirectory(../AnyOs/System.Net.Quic.Native "${CMAKE_CURRENT_BINARY_DIR}/System.Net.Quic.Native")
