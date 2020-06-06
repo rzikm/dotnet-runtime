@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic
 {
-#if WANT_QUIC_PUBLIC
+#if FEATURE_QUIC_PUBLIC
     public
 #else
     internal
@@ -37,12 +37,12 @@ namespace System.Net.Quic
         }
 
         // !!! TEMPORARY: Remove "implementationProvider" before shipping
-        internal QuicListener(QuicImplementationProvider implementationProvider, IPEndPoint listenEndPoint, SslServerAuthenticationOptions sslServerAuthenticationOptions)
+        public QuicListener(QuicImplementationProvider implementationProvider, IPEndPoint listenEndPoint, SslServerAuthenticationOptions sslServerAuthenticationOptions)
             : this(implementationProvider,  new QuicListenerOptions() { ListenEndPoint = listenEndPoint, ServerAuthenticationOptions = sslServerAuthenticationOptions })
         {
         }
 
-        internal QuicListener(QuicImplementationProvider implementationProvider, QuicListenerOptions options)
+        public QuicListener(QuicImplementationProvider implementationProvider, QuicListenerOptions options)
         {
             _provider = implementationProvider.CreateListener(options);
         }

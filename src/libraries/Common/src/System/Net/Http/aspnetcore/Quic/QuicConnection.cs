@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic
 {
-#if WANT_QUIC_PUBLIC
+#if FEATURE_QUIC_PUBLIC
     public
 #else
     internal
@@ -33,12 +33,12 @@ namespace System.Net.Quic
         }
 
         // !!! TEMPORARY: Remove "implementationProvider" before shipping
-        internal QuicConnection(QuicImplementationProvider implementationProvider, IPEndPoint remoteEndPoint, SslClientAuthenticationOptions? sslClientAuthenticationOptions, IPEndPoint? localEndPoint = null)
+        public QuicConnection(QuicImplementationProvider implementationProvider, IPEndPoint remoteEndPoint, SslClientAuthenticationOptions? sslClientAuthenticationOptions, IPEndPoint? localEndPoint = null)
             : this(implementationProvider, new QuicClientConnectionOptions() { RemoteEndPoint = remoteEndPoint, ClientAuthenticationOptions = sslClientAuthenticationOptions, LocalEndPoint = localEndPoint })
         {
         }
 
-        internal QuicConnection(QuicImplementationProvider implementationProvider, QuicClientConnectionOptions options)
+        public QuicConnection(QuicImplementationProvider implementationProvider, QuicClientConnectionOptions options)
         {
             _provider = implementationProvider.CreateConnection(options);
         }

@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic
 {
-#if WANT_QUIC_PUBLIC
+#if FEATURE_QUIC_PUBLIC
     public
 #else
     internal

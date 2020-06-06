@@ -4,7 +4,12 @@
 namespace System.Net.Quic
 {
 
-    internal class QuicConnectionAbortedException : QuicException
+#if FEATURE_QUIC_PUBLIC
+    public
+#else
+    internal
+#endif
+    class QuicConnectionAbortedException : QuicException
     {
         internal QuicConnectionAbortedException(long errorCode)
             : this(SR.Format(SR.net_quic_connectionaborted, errorCode), errorCode)
