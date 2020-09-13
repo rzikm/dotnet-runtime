@@ -14,6 +14,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         public ManagedQuicListener(QuicListenerOptions options)
         {
+            // TODO: should ListenEndPoint be nullable?
             var listenEndPoint = options.ListenEndPoint ?? new IPEndPoint(IPAddress.Any, 0);
 
             var channel = Channel.CreateBounded<ManagedQuicConnection>(new BoundedChannelOptions(options.ListenBacklog)
