@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace System.Net.Quic.Implementations.Managed.Internal
@@ -12,12 +13,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal
     {
         private readonly int _maxItems;
 
-        private readonly Stack<T> _items;
+        private readonly ConcurrentStack<T> _items;
 
         public ObjectPool(int maxItems)
         {
             _maxItems = maxItems;
-            _items = new Stack<T>(maxItems);
+            _items = new ConcurrentStack<T>();
         }
 
         public T Rent()

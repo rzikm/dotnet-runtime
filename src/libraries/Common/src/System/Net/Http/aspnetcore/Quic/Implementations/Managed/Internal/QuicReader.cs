@@ -14,6 +14,10 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         // number of bytes read from the buffer.
         private int _consumed;
 
+        internal QuicReader()
+        {
+        }
+
         internal QuicReader(Memory<byte> buffer)
         {
             _buffer = buffer;

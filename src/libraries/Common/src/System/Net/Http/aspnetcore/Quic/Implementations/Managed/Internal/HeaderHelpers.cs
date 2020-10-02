@@ -5,8 +5,19 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 {
     internal static class QuicConstants
     {
+        /// <summary>
+        ///     Maximum size of the datagram this implementation is willing to receive. This is implementation specific.
+        /// </summary>
+        internal const int MaximumAllowedDatagramSize = 1500;
+
+        /// <summary>
+        ///     Minimum size of the Initial packets clients must send.
+        /// </summary>
         internal const int MinimumClientInitialDatagramSize = 1200;
 
+        /// <summary>
+        ///     Cipher suite used for the encryption of the Initial packets
+        /// </summary>
         internal const TlsCipherSuite InitialCipherSuite = TlsCipherSuite.TLS_AES_128_GCM_SHA256;
 
         internal const int MinimumPacketSize = 21;

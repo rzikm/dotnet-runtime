@@ -1,14 +1,34 @@
 #nullable enable
 
+using System.Buffers;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Net.Quic.Implementations.Managed.Internal.Recovery;
 using System.Net.Quic.Implementations.MsQuic.Internal;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed.Internal
 {
+    /// <summary>
+    ///     Structure for gathering received datagrams.
+    /// </summary>
+    internal class QuicDatagram : IPoolableObject
+    {
+        public byte[] Buffer { get; } = new byte[QuicConstants.MaximumAllowedDatagramSize];
+
+        public int Length { get; set; }
+
+        public IPEndPoint? EndPoint { get; set; }
+
+        public void Reset() { }
+    }
+
     /// <summary>
     ///     Class responsible for serving a socket for QUIC connections.
     /// </summary>
@@ -32,12 +52,107 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         private readonly SendContext _sendContext;
         private readonly RecvContext _recvContext;
 
+        private readonly byte[] _sendBuffer = new byte[16 * 1024];
+
         private long _currentTimeout = long.MaxValue;
 
         protected readonly Socket Socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
 
-        private readonly byte[] _sendBuffer = new byte[64 * 1024];
-        private readonly byte[] _recvBuffer = new byte[64 * 1024];
+        private readonly Channel<QuicDatagram> _recvDatagramChannel =
+            Channel.CreateUnbounded<QuicDatagram>(new UnboundedChannelOptions() {SingleReader = true,});
+        // private readonly ConcurrentQueue<QuicDatagram> _recvDatagramQueue = new ConcurrentQueue<QuicDatagram>();
+        // private readonly ConcurrentQueue<QuicDatagram> _sendDatagramQueue = new ConcurrentQueue<QuicDatagram>();
+
+        private readonly ObjectPool<QuicDatagram> _datagramPool = new ObjectPool<QuicDatagram>(32);
+
+        // private readonly SocketAsyncArgs _sendSocketAsyncEventArgs;
+        private readonly SocketAsyncArgs _recvSocketAsyncEventArgs;
+
+        private class SocketAsyncArgs : SocketAsyncEventArgs
+        {
+            public SocketAsyncArgs(QuicSocketContext context)
+            {
+                CurrentDatagram = new QuicDatagram();
+                _context = context;
+            }
+
+            public QuicDatagram CurrentDatagram
+            {
+                get => _currentDatagram;
+                set => _currentDatagram = value ?? throw new ArgumentNullException("value");
+            }
+
+            private readonly QuicSocketContext _context;
+            private QuicDatagram _currentDatagram;
+        }
+
+        // private void OnAsyncSendCompleted(SocketAsyncArgs args)
+        // {
+        //     FinishAsyncSendOperation(args);
+        //
+        //     // kick off next operation
+        //     StartAsyncSendOperation(args);
+        // }
+        //
+        // private void FinishAsyncSendOperation(SocketAsyncArgs args)
+        // {
+        //     _datagramPool.Return(args.CurrentDatagram);
+        // }
+        //
+        // private void StartAsyncSendOperation(SocketAsyncArgs args)
+        // {
+        // }
+
+        private void OnAsyncRecvCompleted(SocketAsyncArgs args)
+        {
+            FinishAsyncRecvOperation(args);
+
+            if (args.SocketError != SocketError.OperationAborted)
+            {
+                // kick off next operation
+                StartAsyncRecvOperation(args);
+            }
+        }
+
+        private void FinishAsyncRecvOperation(SocketAsyncArgs args)
+        {
+            args.CurrentDatagram.Length = args.BytesTransferred;
+            args.CurrentDatagram.EndPoint = (IPEndPoint) args.RemoteEndPoint!;
+
+            // should always succeed on unbounded channel
+            _recvDatagramChannel.Writer.TryWrite(args.CurrentDatagram);
+
+            args.CurrentDatagram = _datagramPool.Rent();
+        }
+
+        private void StartAsyncRecvOperation(SocketAsyncArgs args)
+        {
+            bool ioPending;
+
+            do
+            {
+                args.SetBuffer(args.CurrentDatagram.Buffer);
+
+                if (Socket.Connected)
+                {
+                    ioPending = Socket.ReceiveAsync(args);
+                }
+                else
+                {
+                    Debug.Assert(_isServer);
+
+                    // not connected implies server, use listening endpoint
+                    args.RemoteEndPoint = _localEndPoint!;
+                    ioPending = Socket.ReceiveFromAsync(args);
+                }
+
+                if (!ioPending)
+                {
+                    // finished synchronously, process and repeat
+                    FinishAsyncRecvOperation(args);
+                }
+            } while (!ioPending);
+        }
 
         protected QuicSocketContext(IPEndPoint? localEndPoint, IPEndPoint? remoteEndPoint, bool isServer)
         {
@@ -46,12 +161,18 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
             _socketTaskCts = new CancellationTokenSource();
 
-            _reader = new QuicReader(_recvBuffer);
-            _writer = new QuicWriter(_sendBuffer);
+            _reader = new QuicReader();
+            _writer = new QuicWriter();
 
             var sentPacketPool = new ObjectPool<SentPacket>(256);
             _sendContext = new SendContext(sentPacketPool);
             _recvContext = new RecvContext(sentPacketPool);
+
+            _recvSocketAsyncEventArgs = new SocketAsyncArgs(this);
+            // _sendSocketAsyncEventArgs = new SocketAsyncArgs(this);
+
+            _recvSocketAsyncEventArgs.Completed += (s, e) => OnAsyncRecvCompleted((SocketAsyncArgs)e);
+            // _sendSocketAsyncEventArgs.Completed += (s, e) => OnAsyncSendCompleted();
 
             Socket.ExclusiveAddressUse = false;
 
@@ -99,10 +220,10 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         protected void Stop()
         {
             _socketTaskCts.Cancel();
-            if (_backgroundWorkerTask == null)
-            {
-                Socket.Dispose();
-            }
+            // if (_backgroundWorkerTask == null)
+            // {
+                // Socket.Dispose();
+            // }
         }
 
         /// <summary>
@@ -275,7 +396,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         {
             var token = _socketTaskCts.Token;
 
-            Task<SocketReceiveFromResult>? socketReceiveTask = null;
+            StartAsyncRecvOperation(_recvSocketAsyncEventArgs);
 
             // TODO-RZ: allow timers for multiple connections on server
             long lastAction = long.MinValue;
@@ -288,32 +409,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                     while (!(doTimeout = _currentTimeout <= (now = Timestamp.Now)) &&
                            !_signalWanted)
                     {
-                        if (socketReceiveTask != null)
+                        if (_recvDatagramChannel.Reader.TryRead(out var datagram))
                         {
-                            // there is still a pending task from last sleep
-                            if (!socketReceiveTask.IsCompleted)
-                            {
-                                break;
-                            }
-
-                            var result = await socketReceiveTask.ConfigureAwait(false);
-                            DoReceive(_recvBuffer.AsMemory(0, result.ReceivedBytes), (IPEndPoint)result.RemoteEndPoint);
+                            DoReceive(datagram.Buffer.AsMemory(0, datagram.Length), datagram.EndPoint!);
                             lastAction = now;
-                            // discard the completed task.
-                            socketReceiveTask = null;
-                        }
-                        else
-                        {
-                            // no pending async task, receive synchronously if there is some data
-                            if (!Socket.Poll(0, SelectMode.SelectRead))
-                            {
-                                break;
-                            }
-
-                            EndPoint remoteEp = _localEndPoint!;
-                            int result = ReceiveFrom(_recvBuffer, ref remoteEp);
-                            DoReceive(_recvBuffer.AsMemory(0, result), (IPEndPoint)remoteEp);
-                            lastAction = now;
+                            _datagramPool.Return(datagram);
                         }
                     }
 
@@ -338,9 +438,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                             ? Task.Delay(timeoutLength, CancellationToken.None)
                             : _infiniteTimeoutTask;
 
-                        // update the recv task only if there is no outstanding async recv
-                        socketReceiveTask ??= ReceiveFromAsync(_recvBuffer, _localEndPoint!,
-                            CancellationToken.None).AsTask();
+                        // wake-up when a datagram is received
+                        var datagramReceiveWait = _recvDatagramChannel.Reader.WaitToReadAsync(token).AsTask();
 
                         _signalTcs = new TaskCompletionSource<int>();
                         Task signalTask = _signalTcs.Task;
@@ -350,7 +449,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                             _signalTcs.TrySetResult(0);
                         }
 
-                        await Task.WhenAny(timeoutTask, socketReceiveTask, signalTask).ConfigureAwait(false);
+                        await Task.WhenAny(timeoutTask, datagramReceiveWait, signalTask).ConfigureAwait(false);
                     }
                 }
             }
@@ -369,26 +468,26 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         protected abstract void OnException(Exception e);
 
         // TODO-RZ: This function is a slight hack, but the socket context classes will need to be reworked either way
-        protected void ReceiveAllDatagramsForConnection(ManagedQuicConnection connection)
-        {
-            // sadly, we have to use exception based dispatch, because there is no way to find out that this was the
-            // last datagram from given endpoint
-            try
-            {
-                while (Socket.Available > 0)
-                {
-                    EndPoint ep = connection.UnsafeRemoteEndPoint;
-                    int length = Socket.ReceiveFrom(_recvBuffer, ref ep);
-                    Debug.Assert(ep.Equals(connection.UnsafeRemoteEndPoint));
-
-                    DoReceive(_recvBuffer.AsMemory(0, length), connection.UnsafeRemoteEndPoint);
-                }
-            }
-            catch (SocketException)
-            {
-                // "service temporarily unavailable", we are done
-            }
-        }
+        // protected void ReceiveAllDatagramsForConnection(ManagedQuicConnection connection)
+        // {
+        //     // sadly, we have to use exception based dispatch, because there is no way to find out that this was the
+        //     // last datagram from given endpoint
+        //     try
+        //     {
+        //         while (Socket.Available > 0)
+        //         {
+        //             EndPoint ep = connection.UnsafeRemoteEndPoint;
+        //             int length = Socket.ReceiveFrom(_recvBuffer, ref ep);
+        //             Debug.Assert(ep.Equals(connection.UnsafeRemoteEndPoint));
+        //
+        //             DoReceive(_recvBuffer.AsMemory(0, length), connection.UnsafeRemoteEndPoint);
+        //         }
+        //     }
+        //     catch (SocketException)
+        //     {
+        //         // "service temporarily unavailable", we are done
+        //     }
+        // }
 
         /// <summary>
         ///     Detaches the given connection from this context, the connection will no longer be updated from the
