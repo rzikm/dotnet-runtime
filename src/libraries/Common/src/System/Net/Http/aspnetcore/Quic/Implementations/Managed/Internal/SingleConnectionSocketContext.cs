@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Quic.Implementations.MsQuic.Internal;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,12 +11,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         private readonly IPEndPoint _remoteEndPoint;
         private readonly ManagedQuicConnection _connection;
 
-        internal SingleConnectionSocketContext(IPEndPoint? localEndpoint, IPEndPoint remoteEndPoint, ManagedQuicConnection connection)
-            : base(localEndpoint)
+        internal SingleConnectionSocketContext(IPEndPoint? localEndpoint, IPEndPoint remoteEndPoint,
+            ManagedQuicConnection connection)
+            : base(localEndpoint, remoteEndPoint, connection.IsServer)
         {
             _remoteEndPoint = remoteEndPoint;
             _connection = connection;
-            Socket.Connect(remoteEndPoint);
         }
 
         protected override ManagedQuicConnection? FindConnection(QuicReader reader, IPEndPoint sender)
@@ -47,6 +48,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 {
                     Debug.Assert(newTimeout != oldTimeout);
                 }
+
                 UpdateTimeout(newTimeout);
             }
             else
@@ -56,7 +58,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             }
         }
 
-        protected override void OnConnectionStateChanged(ManagedQuicConnection connection, QuicConnectionState newState)
+        protected override bool OnConnectionStateChanged(ManagedQuicConnection connection, QuicConnectionState newState)
         {
             switch (newState)
             {
@@ -67,30 +69,52 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 case QuicConnectionState.Closing:
                     break;
                 case QuicConnectionState.Draining:
-                case QuicConnectionState.Closed:
-                    // we can stop immediately and close the socket.
-                    DetachConnection(connection);
+                    if (!connection.IsServer)
+                    {
+                        // clients can stop earlier because there is no danger of packets being interpreted as belonging
+                        // to a new connection.
+                        DetachConnection(connection);
+                    }
+
                     break;
+                case QuicConnectionState.Closed:
+                    // draining timer elapsed, discard the state
+                    DetachConnection(connection);
+                    return true;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(newState), newState, null);
             }
+
+            return false;
         }
 
         protected override int ReceiveFrom(byte[] buffer, ref EndPoint sender)
         {
+            sender = _remoteEndPoint;
             // use method without explicit address because we use connected socket
-            return Socket.Receive(buffer);
+            return Socket.Receive(buffer, SocketFlags.None, out _);
         }
 
-        protected override async Task<SocketReceiveFromResult> ReceiveFromAsync(byte[] buffer, EndPoint sender,
-            CancellationToken token)
+        protected override bool ReceiveFromAsync(ReceiveOperationAsyncSocketArgs args)
         {
-            // use method without explicit address because we use connected socket
-            int i = await Socket.ReceiveAsync(buffer, SocketFlags.None, token);
-            return new SocketReceiveFromResult {ReceivedBytes = i, RemoteEndPoint = _remoteEndPoint};
+            // we are using connected sockets -> use Receive(...). We also have to set the expected
+            // receiver address
+
+            args.RemoteEndPoint = _remoteEndPoint;
+
+            return Socket.ReceiveAsync(args);
         }
 
-        protected override void DetachConnection(ManagedQuicConnection connection)
+        protected override void SendTo(byte[] buffer, int size, EndPoint receiver)
+            // use method without explicit address because we use connected socket
+            => Socket.Send(buffer.AsSpan(0, size), SocketFlags.None, out _);
+
+        protected override void OnException(Exception e)
+        {
+            _connection.OnSocketContextException(e);
+        }
+
+        protected internal override void DetachConnection(ManagedQuicConnection connection)
         {
             Debug.Assert(connection.IsClosed);
             Debug.Assert(connection == _connection);

@@ -1,6 +1,7 @@
 #nullable enable
 
 using System.Diagnostics;
+using System.Net.Quic.Implementations.MsQuic.Internal;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -16,11 +17,13 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         private static readonly Task _infiniteTimeoutTask = new TaskCompletionSource<int>().Task;
 
         private readonly IPEndPoint? _localEndPoint;
+        private readonly bool _isServer;
         private readonly CancellationTokenSource _socketTaskCts;
 
         private TaskCompletionSource<int> _signalTcs =
             new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _signalWanted;
+        private bool _started;
 
         private Task? _backgroundWorkerTask;
 
@@ -37,9 +40,10 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         private readonly byte[] _sendBuffer = new byte[64 * 1024];
         private readonly byte[] _recvBuffer = new byte[64 * 1024];
 
-        protected QuicSocketContext(IPEndPoint? localEndPoint)
+        protected QuicSocketContext(IPEndPoint? localEndPoint, IPEndPoint? remoteEndPoint, bool isServer)
         {
             _localEndPoint = localEndPoint;
+            _isServer = isServer;
 
             _socketTaskCts = new CancellationTokenSource();
 
@@ -49,22 +53,21 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             var sentPacketPool = new ObjectPool<SentPacket>(256);
             _sendContext = new SendContext(sentPacketPool);
             _recvContext = new RecvContext(sentPacketPool);
+
+            SetupSocket(localEndPoint, remoteEndPoint);
         }
 
-        public IPEndPoint LocalEndPoint => (IPEndPoint)Socket.LocalEndPoint!;
-
-        internal void Start()
+        private void SetupSocket(IPEndPoint? localEndPoint, IPEndPoint? remoteEndPoint)
         {
-            if (_backgroundWorkerTask != null)
+            if (localEndPoint != null)
             {
-                return;
+                Socket.Bind(localEndPoint);
             }
 
-            if (_localEndPoint != null)
+            if (remoteEndPoint != null)
             {
-                Socket.Bind(_localEndPoint);
+                Socket.Connect(remoteEndPoint);
             }
-            Socket.Blocking = false;
 
             // TODO-RZ: Find out why I can't use RuntimeInformation when building inside .NET Runtime
 #if FEATURE_QUIC_STANDALONE
@@ -76,18 +79,35 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
                 const int SIO_UDP_CONNRESET = -1744830452;
                 Socket.IOControl(
-                    (IOControlCode)SIO_UDP_CONNRESET,
-                    new byte[] { 0, 0, 0, 0 },
+                    (IOControlCode) SIO_UDP_CONNRESET,
+                    new byte[] {0, 0, 0, 0},
                     null
                 );
             }
+        }
 
+        public IPEndPoint LocalEndPoint => (IPEndPoint)Socket.LocalEndPoint!;
+
+        internal void Start()
+        {
+            if (_backgroundWorkerTask != null)
+            {
+                return;
+            }
+
+            _started = true;
             _backgroundWorkerTask = Task.Run(BackgroundWorker);
         }
 
         protected void Stop()
         {
             _socketTaskCts.Cancel();
+
+            // if never started also cleanup the socket, since the background worker will not do that
+            if (!_started)
+            {
+                Socket.Dispose();
+            }
         }
 
         /// <summary>
@@ -109,22 +129,22 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 _sendContext.SentPacket.Reset();
                 connection.SendData(_writer, out var receiver, _sendContext);
 
-                var newState = connection.ConnectionState;
-                if (newState != previousState)
+                if (_writer.BytesWritten > 0)
                 {
-                    OnConnectionStateChanged(connection, newState);
+                    if (NetEventSource.IsEnabled) NetEventSource.DatagramSent(connection, _writer.Buffer.Span.Slice(0, _writer.BytesWritten));
+
+                    SendTo(_sendBuffer, _writer.BytesWritten, receiver!);
                 }
 
-                previousState = newState;
-
-                if (_writer.BytesWritten == 0)
+                var newState = connection.ConnectionState;
+                if (newState != previousState && OnConnectionStateChanged(connection, newState) ||
+                    _writer.BytesWritten == 0)
                 {
                     break;
                 }
 
-                if (NetEventSource.IsEnabled) NetEventSource.DatagramSent(connection, _writer.Buffer.Span.Slice(0, _writer.BytesWritten));
+                previousState = newState;
 
-                Socket.SendTo(_sendBuffer, 0, _writer.BytesWritten, SocketFlags.None, receiver!);
             }
         }
 
@@ -202,13 +222,59 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         protected abstract void OnTimeout(long now);
 
-        protected abstract void
+        /// <summary>
+        ///     Called when a connections <see cref="ManagedQuicConnection.ConnectionState"/> changes.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="newState">The new state of the connection.</param>
+        /// <returns>True if the processing of the connection should be stopped.</returns>
+        protected abstract bool
             OnConnectionStateChanged(ManagedQuicConnection connection, QuicConnectionState newState);
 
         protected abstract int ReceiveFrom(byte[] buffer, ref EndPoint sender);
 
-        protected abstract Task<SocketReceiveFromResult> ReceiveFromAsync(byte[] buffer, EndPoint sender,
-            CancellationToken token);
+        protected abstract void SendTo(byte[] buffer, int size, EndPoint receiver);
+
+        protected class ReceiveOperationAsyncSocketArgs : SocketAsyncEventArgs
+        {
+            public ResettableCompletionSource<SocketReceiveFromResult> CompletionSource { get; } = new ResettableCompletionSource<SocketReceiveFromResult>();
+
+            protected override void OnCompleted(SocketAsyncEventArgs e)
+            {
+                CompletionSource.Complete(
+                    new SocketReceiveFromResult()
+                    {
+                        ReceivedBytes = e.SocketError == SocketError.Success ? e.BytesTransferred : 0,
+                        RemoteEndPoint = e.RemoteEndPoint!
+                    });
+            }
+        }
+
+        protected ReceiveOperationAsyncSocketArgs SocketReceiveEventArgs { get; } = new ReceiveOperationAsyncSocketArgs();
+
+        protected abstract bool ReceiveFromAsync(ReceiveOperationAsyncSocketArgs args);
+
+        private ValueTask<SocketReceiveFromResult> ReceiveFromAsync(byte[] buffer, EndPoint sender,
+            CancellationToken token)
+        {
+            // TODO-RZ: utilize cancellation token
+
+            SocketReceiveEventArgs.SetBuffer(buffer);
+            SocketReceiveEventArgs.RemoteEndPoint = sender;
+
+            if (ReceiveFromAsync(SocketReceiveEventArgs))
+            {
+                return SocketReceiveEventArgs.CompletionSource.GetValueTask();
+            }
+
+            // operation completed synchronously
+            return new ValueTask<SocketReceiveFromResult>(
+                new SocketReceiveFromResult
+                {
+                    ReceivedBytes = SocketReceiveEventArgs.BytesTransferred,
+                    RemoteEndPoint = SocketReceiveEventArgs.RemoteEndPoint
+                });
+        }
 
         private async Task BackgroundWorker()
         {
@@ -278,7 +344,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                             : _infiniteTimeoutTask;
 
                         // update the recv task only if there is no outstanding async recv
-                        socketReceiveTask ??= ReceiveFromAsync(_recvBuffer, _localEndPoint!, CancellationToken.None);
+                        socketReceiveTask ??= ReceiveFromAsync(_recvBuffer, _localEndPoint!,
+                            CancellationToken.None).AsTask();
 
                         _signalTcs = new TaskCompletionSource<int>();
                         Task signalTask = _signalTcs.Task;
@@ -295,6 +362,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             catch (Exception e)
             {
                 if (NetEventSource.IsEnabled) NetEventSource.Error(this, e);
+                OnException(e);
             }
 
             // cleanup everything
@@ -303,12 +371,36 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             Socket.Dispose();
         }
 
+        protected abstract void OnException(Exception e);
+
+        // TODO-RZ: This function is a slight hack, but the socket context classes will need to be reworked either way
+        protected void ReceiveAllDatagramsForConnection(ManagedQuicConnection connection)
+        {
+            // sadly, we have to use exception based dispatch, because there is no way to find out that this was the
+            // last datagram from given endpoint
+            try
+            {
+                while (Socket.Available > 0)
+                {
+                    EndPoint ep = connection.UnsafeRemoteEndPoint;
+                    int length = Socket.ReceiveFrom(_recvBuffer, ref ep);
+                    Debug.Assert(ep.Equals(connection.UnsafeRemoteEndPoint));
+
+                    DoReceive(_recvBuffer.AsMemory(0, length), connection.UnsafeRemoteEndPoint);
+                }
+            }
+            catch (SocketException)
+            {
+                // "service temporarily unavailable", we are done
+            }
+        }
+
         /// <summary>
         ///     Detaches the given connection from this context, the connection will no longer be updated from the
         ///     thread running at this socket.
         /// </summary>
         /// <param name="connection"></param>
-        protected abstract void DetachConnection(ManagedQuicConnection connection);
+        protected internal abstract void DetachConnection(ManagedQuicConnection connection);
 
         internal class ContextBase
         {

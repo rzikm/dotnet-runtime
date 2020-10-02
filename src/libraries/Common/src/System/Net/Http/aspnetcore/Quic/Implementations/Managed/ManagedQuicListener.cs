@@ -23,6 +23,7 @@ namespace System.Net.Quic.Implementations.Managed
                     throw new FileNotFoundException("Private key file not found", options.PrivateKeyFilePath);
             }
 
+            // TODO: should ListenEndPoint be nullable?
             var listenEndPoint = options.ListenEndPoint ?? new IPEndPoint(IPAddress.Any, 0);
 
             var channel = Channel.CreateBounded<ManagedQuicConnection>(new BoundedChannelOptions(options.ListenBacklog)
