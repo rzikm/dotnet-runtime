@@ -13,6 +13,10 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         // number of bytes already written into the buffer.
         private int _written;
 
+        public QuicWriter()
+        {
+        }
+
         public QuicWriter(Memory<byte> buffer)
         {
             _buffer = buffer;

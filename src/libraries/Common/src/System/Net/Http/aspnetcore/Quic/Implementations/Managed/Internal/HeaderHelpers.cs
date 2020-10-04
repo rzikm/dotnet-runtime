@@ -10,6 +10,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         internal const TlsCipherSuite InitialCipherSuite = TlsCipherSuite.TLS_AES_128_GCM_SHA256;
 
         internal const int MinimumPacketSize = 21;
+
+        /// <summary>
+        ///     Maximum size of a datagram this endpoint is willing to receive
+        /// </summary>
+        // TODO-RZ: Implement Path MTU detection
+        internal const int MaximumAllowedDatagramSize = 1252;
     }
 
     internal static class HeaderHelpers

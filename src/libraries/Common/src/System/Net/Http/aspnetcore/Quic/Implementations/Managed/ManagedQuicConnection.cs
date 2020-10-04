@@ -201,7 +201,6 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         private Exception? _socketContextException;
 
-
         /// <summary>
         ///     Requests sending PING frame to the peer, requiring the peer to send acknowledgement back.
         /// </summary>
@@ -211,20 +210,54 @@ namespace System.Net.Quic.Implementations.Managed
         }
 
         /// <summary>
-        ///     Unsafe access to the <see cref="RemoteEndPoint"/> field. Does not create a defensive copy!
+        ///     Cached instance of the packet reader.
         /// </summary>
-        internal IPEndPoint UnsafeRemoteEndPoint => _remoteEndpoint;
+        private readonly QuicReader _reader = new QuicReader();
+
+        /// <summary>
+        ///     Cached instance of the packet writer.
+        /// </summary>
+        private readonly QuicWriter _writer = new QuicWriter();
+
+        /// <summary>
+        ///     Cached instance of the send context.
+        /// </summary>
+        /// <returns></returns>
+        private readonly QuicSocketContext.SendContext _sendContext;
+
+        /// <summary>
+        ///     Cached instance of the receive context.
+        /// </summary>
+        /// <returns></returns>
+        private readonly QuicSocketContext.RecvContext _recvContext;
+
+        private ManagedQuicConnection(TransportParameters transportParameters)
+        {
+            var sentPacketPool = new ObjectPool<SentPacket>(256);
+
+            _sendContext = new QuicSocketContext.SendContext(sentPacketPool);
+            _recvContext = new QuicSocketContext.RecvContext(sentPacketPool);
+
+            _gcHandle = GCHandle.Alloc(this);
+
+            _localTransportParameters = transportParameters;
+
+            _localLimits.UpdateMaxData(_localTransportParameters.InitialMaxData);
+            _localLimits.UpdateMaxStreamsBidi(_localTransportParameters.InitialMaxStreamsBidi);
+            _localLimits.UpdateMaxStreamsUni(_localTransportParameters.InitialMaxStreamsUni);
+            _peerReceivedLocalLimits = _localLimits;
+        }
 
         // client constructor
         public ManagedQuicConnection(QuicClientConnectionOptions options)
+            : this(TransportParameters.FromClientConnectionOptions(options))
         {
             IsServer = false;
 
             _remoteEndpoint = options.RemoteEndPoint!;
 
             _socketContext = new SingleConnectionSocketContext(options.LocalEndPoint, _remoteEndpoint, this);
-            _localTransportParameters = TransportParameters.FromClientConnectionOptions(options);
-            _gcHandle = GCHandle.Alloc(this);
+
             Tls = new Tls(_gcHandle, options, _localTransportParameters);
 
             // init random connection ids for the client
@@ -237,29 +270,18 @@ namespace System.Net.Quic.Implementations.Managed
 
             // generate first Crypto frames
             Tls.DoHandshake();
-
-            _localLimits.UpdateMaxData(_localTransportParameters.InitialMaxData);
-            _localLimits.UpdateMaxStreamsBidi(_localTransportParameters.InitialMaxStreamsBidi);
-            _localLimits.UpdateMaxStreamsUni(_localTransportParameters.InitialMaxStreamsUni);
-            _peerReceivedLocalLimits = _localLimits;
         }
 
         // server constructor
         public ManagedQuicConnection(QuicListenerOptions options, QuicServerSocketContext socketContext,
             IPEndPoint remoteEndpoint)
+            : this(TransportParameters.FromListenerOptions(options))
         {
             IsServer = true;
             _socketContext = socketContext;
             _remoteEndpoint = remoteEndpoint;
-            _localTransportParameters = TransportParameters.FromListenerOptions(options);
 
-            _gcHandle = GCHandle.Alloc(this);
             Tls = new Tls(_gcHandle, options, _localTransportParameters);
-
-            _localLimits.UpdateMaxData(_localTransportParameters.InitialMaxData);
-            _localLimits.UpdateMaxStreamsBidi(_localTransportParameters.InitialMaxStreamsBidi);
-            _localLimits.UpdateMaxStreamsUni(_localTransportParameters.InitialMaxStreamsUni);
-            _peerReceivedLocalLimits = _localLimits;
         }
 
         /// <summary>

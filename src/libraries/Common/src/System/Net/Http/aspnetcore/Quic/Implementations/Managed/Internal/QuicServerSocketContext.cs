@@ -28,12 +28,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             _acceptNewConnections = true;
         }
 
-        protected override ManagedQuicConnection? FindConnection(QuicReader reader, IPEndPoint remoteEp)
+        protected override ManagedQuicConnection? FindConnection(Memory<byte> datagram, IPEndPoint remoteEp)
         {
             // TODO-RZ: dispatch needs more work, currently only one outbound connection per socket works
             if (!_connectionsByEndpoint.TryGetValue(remoteEp, out ManagedQuicConnection? connection))
             {
-                if (!_acceptNewConnections || HeaderHelpers.GetPacketType(reader.Peek()) != PacketType.Initial)
+                if (!_acceptNewConnections || HeaderHelpers.GetPacketType(datagram.Span[0]) != PacketType.Initial)
                 {
                     // drop packet
                     return null;
@@ -92,11 +92,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                     continue;
                 }
 
-                var origState = connection.ConnectionState;
-                connection.OnTimeout(now);
-
                 // the connection may have data to send
-                Update(connection, origState);
+                Update(connection);
 
                 long newTimeout = connection.GetNextTimerTimestamp();
                 Debug.Assert(newTimeout != oldTimeout);

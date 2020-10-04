@@ -18,7 +18,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         private bool _doKeyUpdate;
 
-        internal void ReceiveData(QuicReader reader, IPEndPoint sender, QuicSocketContext.RecvContext ctx)
+        internal void ReceiveData(Memory<byte> datagram, IPEndPoint sender, long timestamp)
         {
             if (_isDraining)
             {
@@ -26,22 +26,24 @@ namespace System.Net.Quic.Implementations.Managed
                 return;
             }
 
-            var buffer = reader.Buffer;
+            _reader.Reset(datagram);
+            _recvContext.Timestamp = timestamp;
+            _recvContext.HandshakeWanted = false;
 
-            while (reader.BytesLeft > 0)
+            while (_reader.BytesLeft > 0)
             {
-                var status = ReceiveOne(reader, ctx);
+                var status = ReceiveOne(_reader, _recvContext);
 
                 switch (status)
                 {
                     case ProcessPacketResult.DropPacket:
-                        if (NetEventSource.IsEnabled) NetEventSource.PacketDropped(this, reader.Buffer.Length);
+                        if (NetEventSource.IsEnabled) NetEventSource.PacketDropped(this, _reader.Buffer.Length);
                         break;
                     case ProcessPacketResult.Ok:
                         // An endpoint restarts its idle timer when a packet from its peer is
                         // received and processed successfully.
                         _ackElicitingWasSentSinceLastReceive = false;
-                        RestartIdleTimer(ctx.Timestamp);
+                        RestartIdleTimer(_recvContext.Timestamp);
                         break;
                 }
 
@@ -52,8 +54,8 @@ namespace System.Net.Quic.Implementations.Managed
 
                 // ReceiveOne will adjust the buffer length once it is known, thus the length here skips the
                 // just processed coalesced packet
-                buffer = buffer.Slice(reader.Buffer.Length);
-                reader.Reset(buffer);
+                datagram = datagram.Slice(_reader.Buffer.Length);
+                _reader.Reset(datagram);
             }
         }
 
@@ -359,19 +361,23 @@ namespace System.Net.Quic.Implementations.Managed
             return result;
         }
 
-        internal void SendData(QuicWriter writer, out IPEndPoint? receiver, QuicSocketContext.SendContext ctx)
+        internal int SendData(Memory<byte> buffer, out IPEndPoint? receiver, long timestamp)
         {
             receiver = _remoteEndpoint;
+
+            _writer.Reset(buffer);
+            _sendContext.Timestamp = timestamp;
+
+            OnTimeout(_sendContext.Timestamp);
 
             if (_isDraining)
             {
                 // While otherwise identical to the closing state, an endpoint in the draining state MUST NOT
                 // send any packets
-                return;
+                return 0;
             }
 
-            var level = GetWriteLevel(ctx.Timestamp);
-            var origMemory = writer.Buffer;
+            var level = GetWriteLevel(_sendContext.Timestamp);
             int written = 0;
 
             while (level != EncryptionLevel.None)
@@ -382,35 +388,35 @@ namespace System.Net.Quic.Implementations.Managed
                     break;
                 }
 
-                if (SendOne(writer, level, ctx))
+                if (SendOne(_writer, level, _sendContext))
                 {
                     // prepare for sending next packet.
-                    ctx.StartNextPacket();
+                    _sendContext.StartNextPacket();
                 }
                 else
                 {
                     // no more data to send.
-                    ctx.SentPacket.Reset();
+                    _sendContext.SentPacket.Reset();
                     break;
                 }
 
-                written += writer.BytesWritten;
+                written += _writer.BytesWritten;
 
                 // 0-RTT packets do not have Length, so they may not be coalesced
                 if (level == EncryptionLevel.Application)
                     break;
 
-                var nextLevel = GetWriteLevel(ctx.Timestamp);
+                var nextLevel = GetWriteLevel(_sendContext.Timestamp);
 
                 // only coalesce packets in ascending encryption level
                 if (nextLevel <= level)
                     break;
 
                 level = nextLevel;
-                writer.Reset(writer.Buffer.Slice(writer.BytesWritten));
+                _writer.Reset(_writer.Buffer.Slice(_writer.BytesWritten));
             }
 
-            writer.Reset(origMemory, written);
+            return written;
         }
 
         private bool SendOne(QuicWriter writer, EncryptionLevel level, QuicSocketContext.SendContext context)

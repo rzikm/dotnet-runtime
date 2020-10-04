@@ -19,7 +19,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             _connection = connection;
         }
 
-        protected override ManagedQuicConnection? FindConnection(QuicReader reader, IPEndPoint sender)
+        protected override ManagedQuicConnection? FindConnection(Memory<byte> datagram, IPEndPoint sender)
         {
             return _connection;
         }
