@@ -40,7 +40,6 @@ namespace System.Net.Quic.Tests
         private const string CertificateFilePath = "Certs/cert.crt";
         private const string PrivateKeyFilePath = "Certs/cert.key";
 
-        private static readonly QuicServerSocketContext _dummySocketContext = new QuicServerSocketContext(new IPEndPoint(IPAddress.Any, 0), null, null);
         private static readonly IPEndPoint _ipAnyEndpoint = new IPEndPoint(IPAddress.Any, 0);
 
         internal readonly QuicClientConnectionOptions ClientOptions;
@@ -98,7 +97,7 @@ namespace System.Net.Quic.Tests
 
         private static ManagedQuicConnection CreateServer(QuicListenerOptions options)
         {
-            return new ManagedQuicConnection(options, _dummySocketContext, _ipAnyEndpoint);
+            return new ManagedQuicConnection(options, _ipAnyEndpoint);
         }
 
         /// <summary>

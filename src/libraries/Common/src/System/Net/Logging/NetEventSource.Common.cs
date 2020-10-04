@@ -218,7 +218,7 @@ namespace System.Net
             if (IsEnabled) Log.VerboseMessage(IdOf(thisOrContextObject), memberName, Format(message).ToString());
         }
 
-        [Event(ErrorEventId, Level = EventLevel.Verbose, Keywords = Keywords.Default)]
+        // [Event(ErrorEventId, Level = EventLevel.Verbose, Keywords = Keywords.Default)]
         private void VerboseMessage(string thisOrContextObject, string? memberName, string? message) =>
             WriteEvent(ErrorEventId, thisOrContextObject, memberName ?? MissingMember, message);
         #endregion

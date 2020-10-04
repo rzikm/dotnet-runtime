@@ -107,7 +107,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// <summary>
         ///     Context of the socket serving this connection.
         /// </summary>
-        private QuicSocketContext _socketContext;
+        private QuicSocketContext? _socketContext;
 
         /// <summary>
         ///     True if handshake has been confirmed by the peer. For server this means that TLS has reported handshake complete,
@@ -245,11 +245,10 @@ namespace System.Net.Quic.Implementations.Managed
         }
 
         // server constructor
-        public ManagedQuicConnection(QuicListenerOptions options, QuicServerSocketContext socketContext,
+        public ManagedQuicConnection(QuicListenerOptions options,
             IPEndPoint remoteEndpoint)
         {
             IsServer = true;
-            _socketContext = socketContext;
             _remoteEndpoint = remoteEndpoint;
             _localTransportParameters = TransportParameters.FromListenerOptions(options);
 
@@ -614,7 +613,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         internal override bool Connected => HandshakeConfirmed;
 
-        internal override IPEndPoint LocalEndPoint => _socketContext.LocalEndPoint;
+        internal override IPEndPoint LocalEndPoint => _socketContext!.LocalEndPoint;
 
         internal override IPEndPoint RemoteEndPoint => new IPEndPoint(_remoteEndpoint.Address, _remoteEndpoint.Port);
 
@@ -627,7 +626,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (NetEventSource.IsEnabled) NetEventSource.NewClientConnection(this, SourceConnectionId!.Data, DestinationConnectionId!.Data);
 
-            _socketContext.Ping();
+            _socketContext!.Ping();
             _socketContext.Start();
 
             return _connectTcs.GetTask();
@@ -702,7 +701,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (IsClosed) return default;
             _outboundError = new QuicError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
-            _socketContext.Ping();
+            _socketContext!.Ping();
 
             return _closeTcs.GetTask();
         }

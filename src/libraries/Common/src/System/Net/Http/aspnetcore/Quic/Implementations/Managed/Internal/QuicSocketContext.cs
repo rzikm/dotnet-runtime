@@ -37,13 +37,20 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         private long _currentTimeout = long.MaxValue;
 
-        protected readonly Socket Socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+        protected readonly Socket Socket;
 
         private readonly byte[] _sendBuffer = new byte[64 * 1024];
-        private readonly byte[] _recvBuffer = new byte[64 * 1024];
+        protected readonly byte[] _recvBuffer = new byte[64 * 1024];
 
         protected QuicSocketContext(IPEndPoint? localEndPoint, IPEndPoint? remoteEndPoint, bool isServer)
+            : this(localEndPoint, remoteEndPoint, isServer, CreateSocket(localEndPoint, remoteEndPoint, isServer))
         {
+        }
+
+        protected QuicSocketContext(IPEndPoint? localEndPoint, IPEndPoint? remoteEndPoint, bool isServer, Socket socket)
+        {
+            Socket = socket;
+
             _localEndPoint = localEndPoint;
             _remoteEndPoint = remoteEndPoint;
 
@@ -57,25 +64,34 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             var sentPacketPool = new ObjectPool<SentPacket>(256);
             _sendContext = new SendContext(sentPacketPool);
             _recvContext = new RecvContext(sentPacketPool);
-
-            SetupSocket(localEndPoint, remoteEndPoint);
         }
 
-        private void SetupSocket(IPEndPoint? localEndPoint, IPEndPoint? remoteEndPoint)
+        internal static Socket CreateSocket(IPEndPoint? localEndPoint, IPEndPoint? remoteEndPoint, bool isServer)
         {
-            if (Socket.AddressFamily == AddressFamily.InterNetwork)
+            // server param implies local endpoint
+            Debug.Assert(!isServer || localEndPoint != null);
+
+            var socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+            if (isServer)
             {
-                Socket.DontFragment = true;
+                // allow multiple sockets bound to the same port
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                socket.Blocking = false;
+            }
+
+            if (socket.AddressFamily == AddressFamily.InterNetwork)
+            {
+                socket.DontFragment = true;
             }
 
             if (localEndPoint != null)
             {
-                Socket.Bind(localEndPoint);
+                socket.Bind(localEndPoint);
             }
 
             if (remoteEndPoint != null)
             {
-                Socket.Connect(remoteEndPoint);
+                socket.Connect(remoteEndPoint);
             }
 
             // TODO-RZ: Find out why I can't use RuntimeInformation when building inside .NET Runtime
@@ -87,12 +103,14 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 // https://stackoverflow.com/questions/38191968/c-sharp-udp-an-existing-connection-was-forcibly-closed-by-the-remote-host
 
                 const int SIO_UDP_CONNRESET = -1744830452;
-                Socket.IOControl(
+                socket.IOControl(
                     (IOControlCode)SIO_UDP_CONNRESET,
                     new byte[] {0, 0, 0, 0},
                     null
                 );
             }
+
+            return socket;
         }
 
         public IPEndPoint LocalEndPoint => (IPEndPoint)Socket.LocalEndPoint!;
@@ -169,7 +187,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         protected abstract ManagedQuicConnection? FindConnection(QuicReader reader, IPEndPoint sender);
 
-        private void DoReceive(Memory<byte> datagram, IPEndPoint sender)
+        protected void DoReceive(Memory<byte> datagram, IPEndPoint sender)
         {
             // process only datagrams big enough to contain valid QUIC packets
             if (datagram.Length < QuicConstants.MinimumPacketSize)
@@ -242,31 +260,29 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         private int ReceiveFrom(byte[] buffer, out IPEndPoint sender)
         {
-            if (_remoteEndPoint != null)
+            sender = _remoteEndPoint!;
+            if (Socket.Connected)
             {
-                sender = _remoteEndPoint!;
                 // use method without explicit address because we use connected socket
                 return Socket.Receive(buffer);
             }
             else
             {
-                EndPoint ep = _localEndPoint!;
-                int received = Socket.ReceiveFrom(buffer, ref ep);
-                sender = (IPEndPoint)ep;
-                return received;
+                EndPoint ep = _remoteEndPoint!;
+                return Socket.ReceiveFrom(buffer, ref ep);
             }
         }
 
         private void SendTo(byte[] buffer, int size, IPEndPoint receiver)
         {
-            if (_remoteEndPoint != null)
+            if (Socket.Connected)
             {
                 Debug.Assert(Equals(receiver, _remoteEndPoint));
                 Socket.Send(buffer.AsSpan(0, size), SocketFlags.None, out _);
             }
             else
             {
-                Socket.SendTo(buffer, 0, size, SocketFlags.None, receiver);
+                Socket.SendTo(buffer, 0, size, SocketFlags.None, _remoteEndPoint!);
             }
         }
 
@@ -291,20 +307,16 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         private bool ReceiveFromAsync(ReceiveOperationAsyncSocketArgs args)
         {
-            if (_remoteEndPoint != null)
+            if (Socket.Connected)
             {
                 // we are using connected sockets -> use Receive(...). We also have to set the expected
                 // receiver address so that the receiving code later uses it
 
-                Debug.Assert(Socket.Connected);
                 args.RemoteEndPoint = _remoteEndPoint!;
                 return Socket.ReceiveAsync(args);
             }
 
-            Debug.Assert(_isServer);
-            Debug.Assert(_localEndPoint != null);
-
-            args.RemoteEndPoint = _localEndPoint!;
+            args.RemoteEndPoint = _remoteEndPoint!;
             return Socket.ReceiveFromAsync(args);
         }
 
@@ -385,7 +397,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                         lastAction = now;
                     }
 
-                    const int asyncWaitThreshold = 20;
+                    const int asyncWaitThreshold = 200;
                     if (Timestamp.GetMilliseconds(now - lastAction) > asyncWaitThreshold)
                     {
                         // there has been no action for some time, stop consuming CPU and wait until an event wakes us

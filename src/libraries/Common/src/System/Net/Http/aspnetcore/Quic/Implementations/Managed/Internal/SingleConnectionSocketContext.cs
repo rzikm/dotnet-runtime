@@ -2,21 +2,23 @@ using System.Diagnostics;
 using System.Net.Quic.Implementations.MsQuic.Internal;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed.Internal
 {
     internal sealed class SingleConnectionSocketContext : QuicSocketContext
     {
-        private readonly IPEndPoint _remoteEndPoint;
         private readonly ManagedQuicConnection _connection;
 
+        private readonly ChannelWriter<ManagedQuicConnection>? _newConnectionChannel;
+
         internal SingleConnectionSocketContext(IPEndPoint? localEndpoint, IPEndPoint remoteEndPoint,
-            ManagedQuicConnection connection)
+            ManagedQuicConnection connection, ChannelWriter<ManagedQuicConnection>? newConnectionChannel = null)
             : base(localEndpoint, remoteEndPoint, connection.IsServer)
         {
-            _remoteEndPoint = remoteEndPoint;
             _connection = connection;
+            _newConnectionChannel = newConnectionChannel;
         }
 
         protected override ManagedQuicConnection? FindConnection(QuicReader reader, IPEndPoint sender)
@@ -65,6 +67,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 case QuicConnectionState.None:
                     break;
                 case QuicConnectionState.Connected:
+                    _newConnectionChannel?.TryWrite(connection);
                     break;
                 case QuicConnectionState.Closing:
                     break;
