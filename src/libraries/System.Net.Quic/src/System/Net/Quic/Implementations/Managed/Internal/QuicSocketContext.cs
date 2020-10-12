@@ -30,6 +30,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         private bool _signalWanted;
         private bool _started;
+        private bool _received;
+
+        private readonly ManualResetEventSlim _actionEvent = new ManualResetEventSlim();
 
         private Task? _backgroundWorkerTask;
 
@@ -61,6 +64,14 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             var sentPacketPool = new ObjectPool<SentPacket>(256);
             _sendContext = new SendContext(sentPacketPool);
             _recvContext = new RecvContext(sentPacketPool);
+
+            SocketReceiveEventArgs.Completed += (s, e) =>
+            {
+                _received = true;
+                _actionEvent.Set();
+            };
+
+            SocketReceiveEventArgs.SetBuffer(_recvBuffer);
 
             SetupSocket(localEndPoint, remoteEndPoint);
         }
@@ -115,6 +126,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         protected void SignalStop()
         {
             _socketTaskCts.Cancel();
+            _actionEvent.Set(); // wake up
 
             // if never started also cleanup the socket, since the background worker will not do that
             if (!_started)
@@ -135,6 +147,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         {
             _signalWanted = true;
             _signalTcs.TrySetResult(0);
+            _actionEvent.Set();
         }
 
         protected void Update(ManagedQuicConnection connection, QuicConnectionState previousState)
@@ -286,15 +299,15 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             public ResettableCompletionSource<SocketReceiveFromResult> CompletionSource { get; } =
                 new ResettableCompletionSource<SocketReceiveFromResult>();
 
-            protected override void OnCompleted(SocketAsyncEventArgs e)
-            {
-                CompletionSource.Complete(
-                    new SocketReceiveFromResult()
-                    {
-                        ReceivedBytes = e.SocketError == SocketError.Success ? e.BytesTransferred : 0,
-                        RemoteEndPoint = e.RemoteEndPoint!
-                    });
-            }
+            // protected override void OnCompleted(SocketAsyncEventArgs e)
+            // {
+            //     CompletionSource.Complete(
+            //         new SocketReceiveFromResult()
+            //         {
+            //             ReceivedBytes = e.SocketError == SocketError.Success ? e.BytesTransferred : 0,
+            //             RemoteEndPoint = e.RemoteEndPoint!
+            //         });
+            // }
         }
 
         protected ReceiveOperationAsyncSocketArgs SocketReceiveEventArgs { get; } =
@@ -320,6 +333,26 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             return Socket.ReceiveFromAsync(args);
         }
 
+        private void OnReceive(ReceiveOperationAsyncSocketArgs args, bool skipFirst)
+        {
+            bool received;
+
+            do
+            {
+                if (!skipFirst)
+                {
+                    DoReceive(args.MemoryBuffer.Slice(0, args.BytesTransferred), args.RemoteEndPoint!);
+                }
+
+                skipFirst = false;
+
+                received = !_socketTaskCts.IsCancellationRequested && !ReceiveFromAsync(args);
+
+            } while (received);
+
+            _received = false;
+        }
+
         private ValueTask<SocketReceiveFromResult> ReceiveFromAsync(byte[] buffer, EndPoint sender,
             CancellationToken token)
         {
@@ -340,11 +373,13 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 });
         }
 
-        private async Task BackgroundWorker()
+        private void BackgroundWorker()
         {
             var token = _socketTaskCts.Token;
 
             Task<SocketReceiveFromResult>? socketReceiveTask = null;
+
+            OnReceive(SocketReceiveEventArgs, true);
 
             // TODO-RZ: allow timers for multiple connections on server
             long lastAction = long.MinValue;
@@ -352,73 +387,31 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             {
                 while (!token.IsCancellationRequested)
                 {
-                    bool doTimeout;
                     long now;
-                    while (!(doTimeout = _currentTimeout <= (now = Timestamp.Now)) &&
-                           !_signalWanted)
-                    {
-                        if (socketReceiveTask != null)
-                        {
-                            // there is still a pending task from last sleep
-                            if (!socketReceiveTask.IsCompleted)
-                            {
-                                break;
-                            }
-
-                            var result = await socketReceiveTask.ConfigureAwait(false);
-                            DoReceive(_recvBuffer.AsMemory(0, result.ReceivedBytes), result.RemoteEndPoint);
-                            lastAction = now;
-                            // discard the completed task.
-                            socketReceiveTask = null;
-                        }
-                        else
-                        {
-                            // no pending async task, receive synchronously if there is some data
-                            if (!Socket.Poll(0, SelectMode.SelectRead))
-                            {
-                                break;
-                            }
-
-                            int result = ReceiveFrom(_recvBuffer, out var remoteEp);
-                            DoReceive(_recvBuffer.AsMemory(0, result), remoteEp);
-                            lastAction = now;
-                        }
-                    }
+                    bool doTimeout = _currentTimeout <= (now = Timestamp.Now);
 
                     if (doTimeout)
                     {
                         DoTimeout();
-                        lastAction = now;
                     }
 
                     if (_signalWanted)
                     {
                         DoSignal();
-                        lastAction = now;
                     }
 
-                    const int asyncWaitThreshold = 20;
-                    if (Timestamp.GetMilliseconds(now - lastAction) > asyncWaitThreshold)
+                    if (_received)
                     {
-                        // there has been no action for some time, stop consuming CPU and wait until an event wakes us
-                        int timeoutLength = (int)Timestamp.GetMilliseconds(_currentTimeout - now);
-                        Task timeoutTask = _currentTimeout != long.MaxValue
-                            ? Task.Delay(timeoutLength, CancellationToken.None)
-                            : _infiniteTimeoutTask;
+                        OnReceive(SocketReceiveEventArgs, false);
+                    }
 
-                        // update the recv task only if there is no outstanding async recv
-                        socketReceiveTask ??= ReceiveFromAsync(_recvBuffer, _localEndPoint!,
-                            CancellationToken.None).AsTask();
-
-                        _signalTcs = new TaskCompletionSource<int>();
-                        Task signalTask = _signalTcs.Task;
-
-                        if (_signalWanted) // guard against race condition that would deadlock the wait
-                        {
-                            _signalTcs.TrySetResult(0);
-                        }
-
-                        await Task.WhenAny(timeoutTask, socketReceiveTask, signalTask).ConfigureAwait(false);
+                    try
+                    {
+                        _actionEvent.Wait(token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
                     }
                 }
             }
