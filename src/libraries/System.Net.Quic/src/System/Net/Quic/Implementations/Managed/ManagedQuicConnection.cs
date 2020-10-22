@@ -22,7 +22,7 @@ namespace System.Net.Quic.Implementations.Managed
     internal sealed partial class ManagedQuicConnection : QuicConnectionProvider
     {
         // This limit should ensure that if we can fit at least an ack frame into the packet,
-        private const int RequiredCongestionWindowSizeForSending = 2 * ConnectionId.MaximumLength + 10;
+        private const int RequiredCongestionWindowSizeForSending = 2 * ConnectionId.MaximumLength + 40;
 
         private readonly SingleEventValueTaskSource _connectTcs = new SingleEventValueTaskSource();
 
@@ -202,12 +202,15 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         private bool _disposed;
 
-
         /// <summary>
         ///     If not null, contains the exception that terminated the socket maintenance task.
         /// </summary>
         private Exception? _socketContextException;
 
+        /// <summary>
+        ///     Timestamp of last moment this connection was updated.
+        /// </summary>
+        private long _lastUpdateTimestamp;
 
         /// <summary>
         ///     Requests sending PING frame to the peer, requiring the peer to send acknowledgement back.
@@ -317,6 +320,12 @@ namespace System.Net.Quic.Implementations.Managed
                 return long.MaxValue;
             }
 
+            // if (GetWriteLevel(_lastUpdateTimestamp) != PacketSpace.None)
+            // {
+            //     // start immediately
+            //     return _lastUpdateTimestamp;
+            // }
+
             long timer = _idleTimeout;
 
             if (_closingPeriodEndTimestamp != null)
@@ -329,9 +338,16 @@ namespace System.Net.Quic.Implementations.Managed
             if (Recovery.GetAvailableCongestionWindowBytes() >= RequiredCongestionWindowSizeForSending)
             {
                 timer = Math.Min(timer, _nextAckTimer);
+
+                if (Recovery.IsPacing && _streams.HasFlushableStreams)
+                {
+                    timer = Math.Min(timer, Recovery.GetPacingTimerForNextFullPacket());
+                }
             }
 
-            return Math.Min(timer, Recovery.LossRecoveryTimer);
+            timer = Math.Min(timer, Recovery.LossRecoveryTimer);
+
+            return timer;
         }
 
         internal void OnTimeout(long timestamp)
@@ -423,6 +439,15 @@ namespace System.Net.Quic.Implementations.Managed
         }
 
         /// <summary>
+        ///     Gets the amount of data this endpoint can send at this time
+        /// </summary>
+        /// <returns></returns>
+        internal int GetSendingAllowance(long timestamp)
+        {
+            return Recovery.GetSendingAllowance(timestamp);
+        }
+
+        /// <summary>
         ///     Gets <see cref="EncryptionLevel"/> at which the next packet should be sent.
         /// </summary>
         internal EncryptionLevel GetWriteLevel(long timestamp)
@@ -448,7 +473,7 @@ namespace System.Net.Quic.Implementations.Managed
                 return (EncryptionLevel)probeSpace;
             }
 
-            if (Recovery.GetAvailableCongestionWindowBytes() < RequiredCongestionWindowSizeForSending)
+            if (GetSendingAllowance(timestamp) < RequiredCongestionWindowSizeForSending)
             {
                 // can't send anything anyway
                 return EncryptionLevel.None;
