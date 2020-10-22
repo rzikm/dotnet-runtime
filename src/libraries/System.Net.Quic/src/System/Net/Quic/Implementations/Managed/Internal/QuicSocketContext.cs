@@ -110,7 +110,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             }
 
             _started = true;
-            _backgroundWorkerTask = Task.Factory.StartNew(BackgroundWorker, TaskCreationOptions.LongRunning);
+            _backgroundWorkerTask = Task.Factory.StartNew(BackgroundWorker, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
         protected void SignalStop()
