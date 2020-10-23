@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <IncludeRemoteExecutor>true</IncludeRemoteExecutor>
-    <TargetFrameworks>$(NetCoreAppCurrent)-Windows_NT;$(NetCoreAppCurrent)-Unix</TargetFrameworks>
+    <TargetFrameworks>$(NetCoreAppCurrent)-Windows_NT;$(NetCoreAppCurrent)-Linux</TargetFrameworks>
     <StringResourcesPath>../../src/Resources/Strings.resx</StringResourcesPath>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -14,6 +13,7 @@
   <ItemGroup>
     <Compile Include="**\*.cs" />
     <Compile Include="..\..\src\System\Net\Quic\**\*.cs" />
+    <Compile Include="..\..\src\Resources\*.cs" />
   </ItemGroup>
   <!-- System.Net common -->
   <ItemGroup>
