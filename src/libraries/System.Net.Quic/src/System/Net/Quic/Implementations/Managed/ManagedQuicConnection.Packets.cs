@@ -509,7 +509,7 @@ namespace System.Net.Quic.Implementations.Managed
             // probe packets are not limited by congestion window
             if (!isProbePacket)
             {
-                maxPacketLength = Math.Min(maxPacketLength, Recovery.GetSendingAllowance(context.Timestamp));
+                maxPacketLength = Math.Min(maxPacketLength, GetSendingAllowance(context.Timestamp, ShouldIgnorePacer(context.Timestamp)));
             }
 
             // ensuring that we can even send something should be handled by GetWriteLevel function
