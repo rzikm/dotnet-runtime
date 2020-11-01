@@ -1,4 +1,7 @@
-﻿using System.Buffers;
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Buffers;
 using System.Net.Quic.Implementations.Managed.Internal.Headers;
 using System.Threading;
 using System.Threading.Channels;
@@ -23,7 +26,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             {
                 SingleReader = true,
                 SingleWriter = true,
-                AllowSynchronousContinuations = false // not sure about this one
+                AllowSynchronousContinuations = false
             });
 
         internal ChannelWriter<DatagramInfo> IncomingDatagramWriter => _recvQueue.Writer;
@@ -81,7 +84,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
                     _sendContext.Timestamp = Timestamp.Now;
                     Connection.SendData(_writer, out var receiver, _sendContext);
 
-                    await _parent.SendDatagram(new DatagramInfo(buffer, _writer.BytesWritten, receiver));
+                    _parent.SendDatagram(new DatagramInfo(buffer, _writer.BytesWritten, receiver));
 
                     ArrayPool.Return(buffer);
                 }
@@ -101,18 +104,16 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
                     if (!_needsUpdate)
                     {
                         CancellationTokenSource cts = new CancellationTokenSource();
+                        var read = _recvQueue.Reader.WaitToReadAsync(cts.Token).AsTask();
                         await using var registration = cts.Token.Register(static s =>
                         {
                             ((TaskCompletionSource?)s)?.TrySetResult();
                         }, _waitCompletionSource);
 
                         if (_timer < long.MaxValue)
-                        {
                             cts.CancelAfter((int)Timestamp.GetMilliseconds(_timer - now));
-                        }
-
-                        var read = _recvQueue.Reader.WaitToReadAsync(cts.Token).AsTask();
-                        await Task.WhenAny(read, _waitCompletionSource.Task);
+                        await Task.WhenAny(read, _waitCompletionSource.Task).ConfigureAwait(false);
+                        cts.Cancel();
                     }
                 }
             }

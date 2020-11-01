@@ -73,7 +73,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             if (_connectionsByEndpoint.IsEmpty)
             {
                 SignalStop();
-                WaitUntilStop();
             }
         }
 

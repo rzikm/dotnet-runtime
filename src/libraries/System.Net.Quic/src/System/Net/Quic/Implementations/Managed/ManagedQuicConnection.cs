@@ -455,7 +455,7 @@ namespace System.Net.Quic.Implementations.Managed
             return Recovery.GetSendingAllowance(timestamp);
         }
 
-        bool ShouldIgnorePacer(long timestamp)
+        private bool ShouldIgnorePacer(long timestamp)
         {
             return _nextAckTimer <= timestamp || _pingWanted || ShouldSendConnectionClose(timestamp);
         }
