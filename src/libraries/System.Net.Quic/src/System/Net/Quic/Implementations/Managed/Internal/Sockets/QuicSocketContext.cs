@@ -3,17 +3,28 @@
 
 #nullable enable
 
-using System.Collections.Generic;
+using System.Buffers;
 using System.Diagnostics;
 using System.Net.Quic.Implementations.Managed.Internal.Headers;
 using System.Net.Quic.Implementations.MsQuic.Internal;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace System.Net.Quic.Implementations.Managed.Internal
+namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 {
+    internal interface IQuicSocketContext
+    {
+        void Start();
+
+        /// <summary>
+        ///     Used to signal the thread that one of the connections has data to send.
+        /// </summary>
+        void WakeUp();
+
+        IPEndPoint LocalEndPoint { get; }
+    }
+
     /// <summary>
     ///     Class responsible for serving a socket for QUIC connections.
     /// </summary>
@@ -26,26 +37,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         private readonly bool _isServer;
         private readonly CancellationTokenSource _socketTaskCts;
 
-        private TaskCompletionSource<int> _signalTcs =
-            new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        private bool _signalWanted;
         private bool _started;
 
         private Task? _backgroundWorkerTask;
 
-        private readonly QuicReader _reader;
-        private readonly QuicWriter _writer;
-
-        private readonly SendContext _sendContext;
-        private readonly RecvContext _recvContext;
-
-        private long _currentTimeout = long.MaxValue;
-
-        protected readonly Socket Socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
-
-        private readonly byte[] _sendBuffer = new byte[64 * 1024];
-        private readonly byte[] _recvBuffer = new byte[64 * 1024];
+        private readonly Socket Socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
 
         protected QuicSocketContext(EndPoint? localEndPoint, EndPoint? remoteEndPoint, bool isServer)
         {
@@ -55,13 +51,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             _isServer = isServer;
 
             _socketTaskCts = new CancellationTokenSource();
-
-            _reader = new QuicReader(_recvBuffer);
-            _writer = new QuicWriter(_sendBuffer);
-
-            var sentPacketPool = new ObjectPool<SentPacket>(256);
-            _sendContext = new SendContext(sentPacketPool);
-            _recvContext = new RecvContext(sentPacketPool);
 
             SetupSocket(localEndPoint, remoteEndPoint);
         }
@@ -88,7 +77,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             // https://stackoverflow.com/questions/38191968/c-sharp-udp-an-existing-connection-was-forcibly-closed-by-the-remote-host
 
             const int SIO_UDP_CONNRESET = -1744830452;
-            Socket.IOControl(
+                Socket.IOControl(
                 (IOControlCode)SIO_UDP_CONNRESET,
                 new byte[] {0, 0, 0, 0},
                 null
@@ -98,7 +87,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         public IPEndPoint LocalEndPoint => (IPEndPoint)Socket.LocalEndPoint!;
 
-        internal void Start()
+        public void Start()
         {
             if (_started)
             {
@@ -125,50 +114,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             _backgroundWorkerTask?.Wait();
         }
 
-        /// <summary>
-        ///     Used to signal the thread that one of the connections has data to send.
-        /// </summary>
-        internal void Ping()
-        {
-            _signalWanted = true;
-            _signalTcs.TrySetResult(0);
-        }
+        protected abstract void OnDatagramReceived(in DatagramInfo datagram);
 
-        protected void Update(ManagedQuicConnection connection, QuicConnectionState previousState)
-        {
-            _writer.Reset(_sendBuffer);
-            _sendContext.Timestamp = Timestamp.Now;
-            _sendContext.SentPacket.Reset();
-            connection.SendData(_writer, out var receiver, _sendContext);
-
-            if (_writer.BytesWritten > 0)
-            {
-                if (NetEventSource.IsEnabled)
-                    NetEventSource.DatagramSent(connection, _writer.Buffer.Span.Slice(0, _writer.BytesWritten));
-
-                SendTo(_sendBuffer, _writer.BytesWritten, receiver!);
-            }
-
-            var newState = connection.ConnectionState;
-            if (newState != previousState)
-            {
-                OnConnectionStateChanged(connection, newState);
-            }
-        }
-
-        protected void Update(ManagedQuicConnection connection)
-        {
-            Update(connection, connection.ConnectionState);
-        }
-
-        protected void UpdateTimeout(long timestamp)
-        {
-            _currentTimeout = Math.Min(_currentTimeout, timestamp);
-        }
-
-        protected abstract ManagedQuicConnection? FindConnection(QuicReader reader, EndPoint sender);
-
-        private void DoReceive(Memory<byte> datagram, EndPoint sender)
+        private void DoReceive(byte[] datagram, int length, EndPoint sender)
         {
             // process only datagrams big enough to contain valid QUIC packets
             if (datagram.Length < QuicConstants.MinimumPacketSize)
@@ -176,62 +124,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 return;
             }
 
-            _reader.Reset(datagram);
-
-            var connection = FindConnection(_reader, sender);
-            if (connection != null)
-            {
-                if (NetEventSource.IsEnabled) NetEventSource.DatagramReceived(connection, _reader.Buffer.Span);
-
-                var previousState = connection.ConnectionState;
-                _recvContext.Timestamp = Timestamp.Now;
-                connection.ReceiveData(_reader, sender, _recvContext);
-
-                var writeLevel = connection.GetWriteLevel(_recvContext.Timestamp);
-                if (writeLevel == EncryptionLevel.Initial ||
-                    writeLevel == EncryptionLevel.Handshake)
-                {
-                    // the connection has some data to send in response
-                    Update(connection, previousState);
-                }
-                else
-                {
-                    // just check if the datagram changed connection state.
-                    var newState = connection.ConnectionState;
-                    if (newState != previousState)
-                    {
-                        OnConnectionStateChanged(connection, newState);
-                    }
-                }
-
-                UpdateTimeout(connection.GetNextTimerTimestamp());
-            }
+            OnDatagramReceived(new DatagramInfo(datagram, length, sender));
         }
-
-        private void DoSignal()
-        {
-            // clear first, cause update may trigger another signal request
-            _signalWanted = false;
-            OnSignal();
-        }
-
-        private void DoTimeout()
-        {
-            long now = Timestamp.Now;
-
-            // The timer might not fire exactly on time, so we need to make sure it is not just below the
-            // timer value so that the actual logic in Connection gets executed.
-            Debug.Assert(Timestamp.GetMilliseconds(_currentTimeout - now) <= 5);
-            now = Math.Max(now, _currentTimeout);
-
-            // clear previous timeout
-            _currentTimeout = long.MaxValue;
-            OnTimeout(now);
-        }
-
-        protected abstract void OnSignal();
-
-        protected abstract void OnTimeout(long now);
 
         /// <summary>
         ///     Called when a connections <see cref="ManagedQuicConnection.ConnectionState"/> changes.
@@ -239,7 +133,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         /// <param name="connection">The connection.</param>
         /// <param name="newState">The new state of the connection.</param>
         /// <returns>True if the processing of the connection should be stopped.</returns>
-        protected abstract bool
+        protected internal abstract bool
             OnConnectionStateChanged(ManagedQuicConnection connection, QuicConnectionState newState);
 
         private int ReceiveFrom(byte[] buffer, out EndPoint sender)
@@ -259,12 +153,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             }
         }
 
-        private void SendTo(byte[] buffer, int size, EndPoint receiver)
+        protected void SendTo(byte[] buffer, int size, EndPoint receiver)
         {
             if (_remoteEndPoint != null)
             {
                 // Debug.Assert(Equals(receiver, _remoteEndPoint));
-                Socket.Send(buffer.AsSpan(0, size), SocketFlags.None, out _);
+                Socket.Send(buffer.AsSpan(0, size), SocketFlags.None);
                 // Socket.SendTo(buffer, 0, size, SocketFlags.None, _remoteEndPoint);
             }
             else
@@ -291,6 +185,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         protected ReceiveOperationAsyncSocketArgs SocketReceiveEventArgs { get; } =
             new ReceiveOperationAsyncSocketArgs();
+
+        internal ArrayPool<byte> ArrayPool { get; } = ArrayPool<byte>.Shared;
 
         private bool ReceiveFromAsync(ReceiveOperationAsyncSocketArgs args)
         {
@@ -336,83 +232,18 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         {
             var token = _socketTaskCts.Token;
 
-            Task<SocketReceiveFromResult>? socketReceiveTask = null;
-
-            // TODO-RZ: allow timers for multiple connections on server
-            long lastAction = long.MinValue;
             try
             {
                 while (!token.IsCancellationRequested)
                 {
-                    bool doTimeout;
-                    long now;
-                    while (!(doTimeout = _currentTimeout <= (now = Timestamp.Now)) &&
-                           !_signalWanted)
-                    {
-                        if (socketReceiveTask != null)
-                        {
-                            // there is still a pending task from last sleep
-                            if (!socketReceiveTask.IsCompleted)
-                            {
-                                break;
-                            }
-
-                            var result = await socketReceiveTask.ConfigureAwait(false);
-                            DoReceive(_recvBuffer.AsMemory(0, result.ReceivedBytes), result.RemoteEndPoint);
-                            lastAction = now;
-                            // discard the completed task.
-                            socketReceiveTask = null;
-                        }
-                        else
-                        {
-                            // no pending async task, receive synchronously if there is some data
-                            if (!Socket.Poll(0, SelectMode.SelectRead))
-                            {
-                                break;
-                            }
-
-                            int result = ReceiveFrom(_recvBuffer, out var remoteEp);
-                            DoReceive(_recvBuffer.AsMemory(0, result), remoteEp);
-                            lastAction = now;
-                        }
-                    }
-
-                    if (doTimeout)
-                    {
-                        DoTimeout();
-                        lastAction = now;
-                    }
-
-                    if (_signalWanted)
-                    {
-                        DoSignal();
-                        lastAction = now;
-                    }
-
-                    const int asyncWaitThreshold = 5;
-                    if (Timestamp.GetMilliseconds(now - lastAction) > asyncWaitThreshold)
-                    {
-                        // there has been no action for some time, stop consuming CPU and wait until an event wakes us
-                        int timeoutLength = (int)Timestamp.GetMilliseconds(_currentTimeout - now);
-                        Task timeoutTask = _currentTimeout != long.MaxValue
-                            ? Task.Delay(timeoutLength, CancellationToken.None)
-                            : _infiniteTimeoutTask;
-
-                        // update the recv task only if there is no outstanding async recv
-                        socketReceiveTask ??= ReceiveFromAsync(_recvBuffer, _localEndPoint!,
-                            CancellationToken.None).AsTask();
-
-                        _signalTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-                        Task signalTask = _signalTcs.Task;
-
-                        if (_signalWanted) // guard against race condition that would deadlock the wait
-                        {
-                            _signalTcs.TrySetResult(0);
-                        }
-
-                        await Task.WhenAny(timeoutTask, socketReceiveTask, signalTask).ConfigureAwait(false);
-                    }
+                    var buffer = ArrayPool.Rent(QuicConstants.MaximumAllowedDatagramSize);
+                    var recv = await ReceiveFromAsync(buffer, _localEndPoint!, token);
+                    DoReceive(buffer, recv.ReceivedBytes, recv.RemoteEndPoint);
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                // do nothing the socket context is closing
             }
             catch (Exception e)
             {
@@ -483,6 +314,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         private void Dispose()
         {
             Socket.Dispose();
+        }
+
+        internal Task SendDatagram(in DatagramInfo datagram)
+        {
+            SendTo(datagram.Buffer, datagram.Length, datagram.RemoteEndpoint);
+            return Task.CompletedTask;
         }
     }
 }
