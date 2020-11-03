@@ -1,6 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
-// See the LICENSE file in the project root for more information.
+using Internal.Runtime.CompilerServices;
 
 namespace System.Runtime.CompilerServices
 {
@@ -8,8 +8,10 @@ namespace System.Runtime.CompilerServices
     {
         public static void InitializeArray(Array array, RuntimeFieldHandle fldHandle)
         {
-            if (array == null || fldHandle.Value == IntPtr.Zero)
-                throw new ArgumentNullException();
+            if (array == null)
+                throw new ArgumentNullException(nameof(array));
+            if (fldHandle.Value == IntPtr.Zero)
+                throw new ArgumentNullException(nameof(fldHandle));
 
             InitializeArray(array, fldHandle.Value);
         }
@@ -107,6 +109,9 @@ namespace System.Runtime.CompilerServices
         {
             throw new PlatformNotSupportedException();
         }
+
+        [Intrinsic]
+        internal static ref byte GetRawData(this object obj) => ref obj.GetRawData();
 
         [Intrinsic]
         public static bool IsReferenceOrContainsReferences<T>() => IsReferenceOrContainsReferences<T>();
