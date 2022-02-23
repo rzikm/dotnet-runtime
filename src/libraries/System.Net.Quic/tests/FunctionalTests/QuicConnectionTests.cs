@@ -89,6 +89,7 @@ namespace System.Net.Quic.Tests
 
                     // Subsequent attempts should fail
                     // TODO: Which exception is correct?
+                    if (IsMockProvider)
                     await AssertThrowsQuicExceptionAsync(QuicError.OperationAborted, async () => await serverConnection.AcceptInboundStreamAsync());
                     await Assert.ThrowsAsync<QuicException>(() => OpenAndUseStreamAsync(serverConnection));
                 });
@@ -175,6 +176,8 @@ namespace System.Net.Quic.Tests
             {
                 await writer.WriteAsync(new byte[1]);
             }
+
+            await writer.FlushAsync();
         }
 
         private static async Task DoReads(QuicStream reader, int readCount)
