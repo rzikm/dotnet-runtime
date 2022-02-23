@@ -175,6 +175,8 @@ namespace System.Net.Quic.Tests
             {
                 await writer.WriteAsync(new byte[1]);
             }
+
+            await writer.FlushAsync();
         }
 
         private static async Task DoReads(QuicStream reader, int readCount)

@@ -23,7 +23,7 @@
     <Compile Include="..\..\src\System\Net\Quic\QuicOptions.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicStream.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicStreamAbortedException.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\Implementations\Managed\**\*.cs" Link="System\Net\Quic\Implementations\Managed\*" />
+    <Compile Include="..\..\src\System\Net\Quic\Implementations\Managed\**\*.cs" />
     <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicImplementationProvider.cs" Link="System\Net\Quic\Implementations\QuicImplementationProvider.cs"/>
     <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicListenerProvider.cs" Link="System\Net\Quic\Implementations\QuicListenerProvider.cs"/>
     <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicStreamProvider.cs" Link="System\Net\Quic\Implementations\QuicStreamProvider.cs"/>

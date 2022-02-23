@@ -18,6 +18,8 @@ using System.Net.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.Channels;
+using System.Diagnostics.CodeAnalysis;
 
 namespace System.Net.Quic.Implementations.Managed
 {
@@ -595,17 +597,38 @@ namespace System.Net.Quic.Implementations.Managed
             return ProcessPacketResult.Error;
         }
 
-        internal async ValueTask DisposeAsync()
+        internal ValueTask DisposeAsync(long errorCode)
         {
-            if (_disposed)
+            if (_disposed || _closeTcs.IsSet)
             {
-                return;
+                return default;
             }
-            var task =  CloseAsync((long)TransportErrorCode.NoError);
-            _disposed = true;
-            await task.ConfigureAwait(false);
 
+            if (!Connected)
+            {
+                // abandon connection attempt
+                _connectTcs.TryCompleteException(new QuicConnectionAbortedException(errorCode));
+                _closeTcs.TryComplete();
+                return default;
+            }
+
+            // abort all pending stream operations on our side
+            foreach (var stream in _streams.AllStreams)
+            {
+                stream.OnConnectionClosed(MakeOperationAbortedException());
+            }
+
+            _outboundError = new QuicError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
+            _disposed = true;
             Tls.Dispose();
+            _socketContext.WakeUp();
+
+            return _closeTcs.GetTask();
+        }
+
+        internal ValueTask DisposeAsync()
+        {
+            return DisposeAsync((long)TransportErrorCode.NoError);
         }
 
         public override void Dispose()
@@ -737,13 +760,19 @@ namespace System.Net.Quic.Implementations.Managed
             return checked((int)_sendLimits.MaxStreamsBidi);
         }
 
-        internal override async ValueTask<QuicStreamProvider>
-            AcceptStreamAsync(CancellationToken cancellationToken = default)
+        internal override async ValueTask<QuicStreamProvider> AcceptStreamAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfError();
 
-            return await _streams.IncomingStreams.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await _streams.IncomingStreams.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (ChannelClosedException)
+            {
+                throw MakeOperationAbortedException();
+            }
         }
 
         internal override SslApplicationProtocol NegotiatedApplicationProtocol
@@ -759,26 +788,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         internal override ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
         {
-            ThrowIfDisposed();
-
-            if (_closeTcs.IsSet)
-            {
-                return default;
-            }
-
-            if (!Connected)
-            {
-                // abandon connection attempt
-                _connectTcs.TryCompleteException(new QuicConnectionAbortedException(errorCode));
-                _closeTcs.TryComplete();
-                return default;
-            }
-
-            if (IsClosed) return default;
-            _outboundError = new QuicError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
-            _socketContext.WakeUp();
-
-            return _closeTcs.GetTask();
+            return DisposeAsync(errorCode);
         }
 
         #endregion
@@ -801,7 +811,7 @@ namespace System.Net.Quic.Implementations.Managed
             // unread data/streams if the connection was closed by the peer.
             if (error != null && error.ErrorCode != TransportErrorCode.NoError)
             {
-                throw MakeAbortedException(error);
+                throw MakeConnectionAbortedException(error);
             }
         }
 
@@ -850,12 +860,12 @@ namespace System.Net.Quic.Implementations.Managed
             }
             else
             {
-                _streams.IncomingStreams.Writer.TryComplete(MakeAbortedException(error));
+                _streams.IncomingStreams.Writer.TryComplete(MakeConnectionAbortedException(error));
             }
 
             foreach (var stream in _streams.AllStreams)
             {
-                stream.OnConnectionClosed(MakeAbortedException(error));
+                stream.OnConnectionClosed(MakeConnectionAbortedException(error));
             }
         }
 
@@ -902,7 +912,15 @@ namespace System.Net.Quic.Implementations.Managed
             _connectTcs.TryComplete();
         }
 
-        private static QuicConnectionAbortedException MakeAbortedException(QuicError error)
+
+        private QuicException MakeOperationAbortedException()
+        {
+            return _inboundError  != null
+                ? MakeConnectionAbortedException(_inboundError) // initiated by peer
+                : new QuicOperationAbortedException(); // initiated by us
+        }
+
+        private static QuicConnectionAbortedException MakeConnectionAbortedException(QuicError error)
         {
             return error.ReasonPhrase != null
                 // TODO-RZ: We should probably format reason phrase into the exception message
