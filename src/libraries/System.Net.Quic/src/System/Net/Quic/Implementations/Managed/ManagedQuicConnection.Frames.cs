@@ -569,7 +569,7 @@ namespace System.Net.Quic.Implementations.Managed
                 if (!_connectTcs.IsSet)
                 {
                     // connection will not succeed
-                    _connectTcs.TryCompleteException(MakeAbortedException(_inboundError));
+                    _connectTcs.TryCompleteException(MakeConnectionAbortedException(_inboundError));
                 }
             }
 
