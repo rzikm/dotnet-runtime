@@ -315,7 +315,7 @@ namespace System.Net.Quic.Implementations.Managed
             Debug.Assert(stream!.CanWrite);
 
             // duplicate receipt is handled internally (guarded state transitions)
-            stream.SendStream!.RequestAbort(frame.ApplicationErrorCode);
+            stream.SendStream!.RequestAbort(frame.ApplicationErrorCode, false);
             _streams.MarkForUpdate(stream);
 
             return ProcessPacketResult.Ok;

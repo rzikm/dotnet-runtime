@@ -83,7 +83,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// <param name="unidirectional">True if the stream should be unidirectional.</param>
         /// <param name="cancellationToken">Cancellation token for this operation.</param>
         /// <returns></returns>
-        internal ValueTask<ManagedQuicStream> OpenStream(bool unidirectional, CancellationToken cancellationToken)
+        internal ValueTask<ManagedQuicStream> OpenStream(bool unidirectional, CancellationToken cancellationToken = default)
         {
             var type = StreamHelpers.GetLocallyInitiatedType(IsServer, unidirectional);
             ref long counter = ref (unidirectional ? ref _uniStreamsOpened : ref _bidirStreamsOpened);

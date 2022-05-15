@@ -24,6 +24,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         DataSent,
 
         /// <summary>
+        ///     Terminal state, all data has been acknowledged by the peer.
+        /// </summary>
+        DataReceived,
+
+        /// <summary>
         ///     Intermediate state that stream reset is wanted, but it was not sent yet. No data transmission occurs
         ///     there.
         /// </summary>
@@ -33,11 +38,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         ///     Sending of the stream has been aborted by this endpoint and RESET_STREAM was sent. No data are sent.
         /// </summary>
         ResetSent,
-
-        /// <summary>
-        ///     Terminal state, all data has been acknowledged by the peer.
-        /// </summary>
-        DataReceived,
 
         /// <summary>
         ///     Terminal state, RESET_STREAM frame has been acknowledged by the peer.

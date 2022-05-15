@@ -155,7 +155,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
                 Error = errorCode;
             }
 
-            SetStreamAborted(errorCode);
+            SetStreamAborted(errorCode, true);
             // we cannot drop all buffered data now, since we are on user thread. The data will be discarded
             // in OnStopSendingSent.
         }
@@ -187,7 +187,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
             Debug.Assert(StreamState == RecvStreamState.DataRead || StreamState >= RecvStreamState.ResetReceived);
 
-            SetStreamAborted(errorCode);
+            SetStreamAborted(errorCode, false);
             DropAllBufferedData();
         }
 
@@ -480,9 +480,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             _receivingBuffers.Clear();
         }
 
-        private void SetStreamAborted(long errorCode)
+        private void SetStreamAborted(long errorCode, bool byUs)
         {
-            _deliverableChannel.Writer.TryComplete(new QuicStreamAbortedException(errorCode));
+            _deliverableChannel.Writer.TryComplete(byUs
+                ? new QuicOperationAbortedException()
+                : new QuicStreamAbortedException(errorCode));
         }
     }
 }
