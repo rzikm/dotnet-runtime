@@ -5,7 +5,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Tls;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal class ManagedQuicImplementationProvider : QuicImplementationProvider
+    internal sealed class ManagedQuicImplementationProvider : QuicImplementationProvider
     {
         public override bool IsSupported => _tlsFactory is TlsFactory || Interop.OpenSslQuic.IsSupported;
 

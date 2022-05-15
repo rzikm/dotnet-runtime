@@ -181,7 +181,7 @@ namespace System.Net.Quic.Tests.Frames
             Assert.Equal(expected.Data, actual.Data);
             Assert.Equal(expected.IsChallenge, actual.IsChallenge);
 
-            Assert.Equal(writer.BytesWritten, expected.GetSerializedLength());
+            Assert.Equal(writer.BytesWritten, PathChallengeFrame.GetSerializedLength());
             Assert.Equal(writer.BytesWritten, reader.BytesRead);
         }
 

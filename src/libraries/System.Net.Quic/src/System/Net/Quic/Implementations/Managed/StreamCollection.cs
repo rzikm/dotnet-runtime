@@ -45,7 +45,8 @@ namespace System.Net.Quic.Implementations.Managed
         internal Channel<ManagedQuicStream> IncomingStreams { get; } =
             Channel.CreateUnbounded<ManagedQuicStream>(new UnboundedChannelOptions()
             {
-                SingleReader = true, SingleWriter = true
+                SingleReader = true,
+                SingleWriter = true
             });
 
         internal ManagedQuicStream this[long streamId] => _streams[streamId];
@@ -152,7 +153,7 @@ namespace System.Net.Quic.Implementations.Managed
             return _streams[streamId];
         }
 
-        private ManagedQuicStream CreateStream(long streamId,
+        private static ManagedQuicStream CreateStream(long streamId,
             bool isLocal, bool unidirectional, TransportParameters localParams, TransportParameters remoteParams,
             ManagedQuicConnection connection)
         {

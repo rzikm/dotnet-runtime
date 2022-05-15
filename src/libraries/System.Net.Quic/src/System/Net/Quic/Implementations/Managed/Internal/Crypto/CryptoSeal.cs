@@ -7,7 +7,7 @@ using System.Net.Security;
 
 namespace System.Net.Quic.Implementations.Managed.Internal.Crypto
 {
-    internal class CryptoSeal
+    internal sealed class CryptoSeal
     {
         private readonly CryptoSealAlgorithm _algorithm;
         private readonly byte[] _headerKey;
@@ -165,7 +165,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Crypto
             iv.CopyTo(nonce);
             for (int i = 0; i < 8; i++)
             {
-                nonce[nonce.Length - 1 - i] ^= (byte) (packetNumber >> (i * 8));
+                nonce[nonce.Length - 1 - i] ^= (byte)(packetNumber >> (i * 8));
             }
         }
 

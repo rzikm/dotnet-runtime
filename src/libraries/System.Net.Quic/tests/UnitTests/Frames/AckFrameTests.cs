@@ -10,6 +10,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Frames;
 using System.Net.Quic.Tests.Harness;
 using Xunit;
 using Xunit.Abstractions;
+using System.Threading.Tasks;
 using AckFrame = System.Net.Quic.Tests.Harness.AckFrame;
 using StreamFrame = System.Net.Quic.Tests.Harness.StreamFrame;
 
@@ -80,7 +81,7 @@ namespace System.Net.Quic.Tests.Frames
         }
 
         [Fact]
-        public void TestAckNonContiguousRanges()
+        public async Task TestAckNonContiguousRanges()
         {
             // make sure the end has enough consecutive PNs to guarantee that earlier packets are determined lost
             var received = new[] {2, 3, 4, 7, 8, 10, 13, 14, 15, 16};
@@ -90,7 +91,7 @@ namespace System.Net.Quic.Tests.Frames
 
             // we enforce sending packets by writing one byte, coincidentally containing the value of expected packet
             // number for better testing
-            var clientStream = Client.OpenUnidirectionalStream();
+            var clientStream = await Client.OpenUnidirectionalStreamAsync();
 
             for (int i = 0; i <= last; i++)
             {

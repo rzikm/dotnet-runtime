@@ -9,7 +9,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
     /// <summary>
     ///      Contains data about what all was sent in an outbound packet for packet loss recovery purposes.
     /// </summary>
-    internal class SentPacket : IPoolableObject
+    internal sealed class SentPacket : IPoolableObject
     {
         internal static readonly Comparer<SentPacket> PacketNumberComparer = Comparer<SentPacket>.Create((l, r) => l.PacketNumber.CompareTo(r.PacketNumber));
 
