@@ -234,13 +234,13 @@ namespace System.Net.Quic.Implementations.Managed
                 return CloseConnection(TransportErrorCode.ProtocolViolation, QuicError.InvalidAckRange, FrameType.Ack);
 
             Span<RangeSet.Range> ranges = frame.AckRangeCount < 16
-                ? stackalloc RangeSet.Range[(int) frame.AckRangeCount + 1]
+                ? stackalloc RangeSet.Range[(int)frame.AckRangeCount + 1]
                 : new RangeSet.Range[frame.AckRangeCount + 1];
 
             if (!frame.TryDecodeAckRanges(ranges))
             {
-              return CloseConnection(TransportErrorCode.FrameEncodingError,
-                            QuicError.InvalidAckRange, frame.HasEcnCounts ? FrameType.AckWithEcn : FrameType.Ack);
+                return CloseConnection(TransportErrorCode.FrameEncodingError,
+                              QuicError.InvalidAckRange, frame.HasEcnCounts ? FrameType.AckWithEcn : FrameType.Ack);
             }
 
             var space = GetPacketSpace(packetType);
@@ -404,10 +404,36 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (IsClosing) return ProcessPacketResult.Ok;
 
+            long previousLimitId;
+            long newLimitId;
+
             if (frame.Bidirectional)
+            {
+                StreamType type = StreamHelpers.GetLocallyInitiatedType(IsServer, false);
+                previousLimitId = StreamHelpers.ComposeStreamId(type, _sendLimits.MaxStreamsBidi);
                 _sendLimits.UpdateMaxStreamsBidi(frame.MaximumStreams);
+                newLimitId = StreamHelpers.ComposeStreamId(type, _sendLimits.MaxStreamsBidi);
+            }
             else
+            {
+                StreamType type = StreamHelpers.GetLocallyInitiatedType(IsServer, true);
+                previousLimitId = StreamHelpers.ComposeStreamId(type, _sendLimits.MaxStreamsUni);
                 _sendLimits.UpdateMaxStreamsUni(frame.MaximumStreams);
+                newLimitId = StreamHelpers.ComposeStreamId(type, _sendLimits.MaxStreamsUni);
+            }
+
+            // notify streams waiting to be started
+            for (long streamId = previousLimitId; streamId < newLimitId; streamId += 4)
+            {
+                ManagedQuicStream? stream = _streams.TryGetStream(streamId);
+                if (stream == null)
+                {
+                    // no more streams awaiting increased limits
+                    break;
+                }
+
+                stream.NotifyStarted();
+            }
 
             return ProcessPacketResult.Ok;
         }
@@ -670,7 +696,7 @@ namespace System.Net.Quic.Implementations.Managed
         {
             int length = reader.BytesLeft;
             FrameType frameType = reader.ReadFrameType();
-            _trace?.OnUnknownFrame((long) frameType, length);
+            _trace?.OnUnknownFrame((long)frameType, length);
             return CloseConnection(TransportErrorCode.FrameEncodingError, QuicError.UnknownFrameType, frameType);
         }
 
@@ -794,7 +820,7 @@ namespace System.Net.Quic.Implementations.Managed
                 _trace?.OnCryptoFrame(new CryptoFrame(offset, destination));
 
                 context.SentPacket.StreamFrames.Add(
-                    SentPacket.StreamFrameHeader.ForCryptoStream(offset, (int) count));
+                    SentPacket.StreamFrameHeader.ForCryptoStream(offset, (int)count));
             }
         }
 
@@ -1037,7 +1063,7 @@ namespace System.Net.Quic.Implementations.Managed
 
                     // record sent data
                     context.SentPacket.StreamFrames.Add(
-                        new SentPacket.StreamFrameHeader(stream!.StreamId, offset, (int) count, fin));
+                        new SentPacket.StreamFrameHeader(stream!.StreamId, offset, (int)count, fin));
 
                     written = true;
                 }
