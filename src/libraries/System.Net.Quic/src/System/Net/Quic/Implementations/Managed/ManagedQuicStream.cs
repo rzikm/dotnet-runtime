@@ -32,6 +32,11 @@ namespace System.Net.Quic.Implementations.Managed
         private readonly SingleEventValueTaskSource _shutdownCompleted = new SingleEventValueTaskSource();
 
         /// <summary>
+        ///     Value task source for signalling that this stream was successfully started (is within peer's limits);
+        /// </summary>
+        private readonly SingleEventValueTaskSource _started = new SingleEventValueTaskSource();
+
+        /// <summary>
         ///     True if this instance has been disposed.
         /// </summary>
         private bool _disposed;
@@ -243,17 +248,32 @@ namespace System.Net.Quic.Implementations.Managed
             await SendStream!.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
             _connection.OnStreamDataWritten(this);
 
-            using CancellationTokenRegistration registration = cancellationToken.Register(() =>
+            using CancellationTokenRegistration registration = cancellationToken.UnsafeRegister(static (s, token) =>
             {
-                _shutdownCompleted.TryCompleteException(
-                    new OperationCanceledException("Shutdown was cancelled", cancellationToken));
-            });
+                ((ManagedQuicStream?)s)!._shutdownCompleted.TryCompleteException(
+                    new OperationCanceledException("Shutdown was cancelled", token));
+            }, this);
 
             await _shutdownCompleted.GetTask().ConfigureAwait(false);
         }
 
         // TODO:
         internal override ValueTask WaitForWriteCompletionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+        internal async ValueTask WaitForStartAsync(CancellationToken cancellationToken)
+        {
+            using CancellationTokenRegistration registration = cancellationToken.UnsafeRegister(static (s, token) =>
+            {
+                ((ManagedQuicStream?)s)!._started.TryCompleteException(new OperationCanceledException("Start was canceled", token));
+            }, this);
+
+            await _started.GetTask().ConfigureAwait(false);
+        }
+
+        internal void NotifyStarted()
+        {
+            _started.TryComplete();
+        }
 
         internal void OnFatalException(Exception exception)
         {
@@ -266,6 +286,7 @@ namespace System.Net.Quic.Implementations.Managed
             // closing connection (CONNECTION_CLOSE frame) causes all streams to become closed
             NotifyShutdownWriteCompleted();
 
+            _started.TryCompleteException(exception);
             OnFatalException(exception);
         }
 
@@ -370,7 +391,7 @@ namespace System.Net.Quic.Implementations.Managed
             // SendStream not null is implied by CanWrite
             if (SendStream!.Error != null)
             {
-                throw new QuicStreamAbortedException("Writing was aborted on the stream",  SendStream.Error.Value);
+                throw new QuicStreamAbortedException("Writing was aborted on the stream", SendStream.Error.Value);
             }
         }
 
@@ -384,7 +405,7 @@ namespace System.Net.Quic.Implementations.Managed
             // ReceiveStream not null is implied by CanRead
             if (ReceiveStream!.Error != null)
             {
-                throw new QuicStreamAbortedException("Reading was aborted on the stream",  ReceiveStream.Error.Value);
+                throw new QuicStreamAbortedException("Reading was aborted on the stream", ReceiveStream.Error.Value);
             }
         }
 

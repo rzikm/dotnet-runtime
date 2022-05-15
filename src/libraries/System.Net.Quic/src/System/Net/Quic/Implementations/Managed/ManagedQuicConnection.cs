@@ -729,7 +729,7 @@ namespace System.Net.Quic.Implementations.Managed
             ThrowIfDisposed();
             ThrowIfError();
 
-            return await OpenStream(true).ConfigureAwait(false);
+            return await OpenStream(true, cancellationToken).ConfigureAwait(false);
         }
 
         internal async override ValueTask<QuicStreamProvider> OpenBidirectionalStreamAsync(CancellationToken cancellationToken = default)
@@ -737,7 +737,7 @@ namespace System.Net.Quic.Implementations.Managed
             ThrowIfDisposed();
             ThrowIfError();
 
-            return await OpenStream(false).ConfigureAwait(false);
+            return await OpenStream(false, cancellationToken).ConfigureAwait(false);
         }
 
         internal override int GetRemoteAvailableUnidirectionalStreamCount()

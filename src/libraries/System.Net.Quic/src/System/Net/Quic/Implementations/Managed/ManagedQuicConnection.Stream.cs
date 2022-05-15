@@ -1,7 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Collections.Immutable;
+using System.Collections.Concurrent;
 using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Frames;
 using System.Net.Quic.Implementations.Managed.Internal.Streams;
@@ -70,42 +70,44 @@ namespace System.Net.Quic.Implementations.Managed
         /// <summary>
         ///     Number of bidirectional streams explicitly opened by this endpoint.
         /// </summary>
-        private int _bidirStreamsOpened;
+        private long _bidirStreamsOpened;
 
         /// <summary>
         ///     Number of unidirectional streams explicitly opened by this endpoint.
         /// </summary>
-        private int _uniStreamsOpened;
+        private long _uniStreamsOpened;
 
         /// <summary>
         ///     Opens a new outbound stream with lowest available stream id.
         /// </summary>
         /// <param name="unidirectional">True if the stream should be unidirectional.</param>
+        /// <param name="cancellationToken">Cancellation token for this operation.</param>
         /// <returns></returns>
-        internal ValueTask<ManagedQuicStream> OpenStream(bool unidirectional)
+        internal ValueTask<ManagedQuicStream> OpenStream(bool unidirectional, CancellationToken cancellationToken)
         {
             var type = StreamHelpers.GetLocallyInitiatedType(IsServer, unidirectional);
-            ref int counter = ref (unidirectional ? ref _uniStreamsOpened : ref _bidirStreamsOpened);
+            ref long counter = ref (unidirectional ? ref _uniStreamsOpened : ref _bidirStreamsOpened);
+            long index = Interlocked.Increment(ref counter);
+
+            ManagedQuicStream stream = _streams.GetOrCreateStream(
+                StreamHelpers.ComposeStreamId(type, index), _localTransportParameters, _peerTransportParameters, true, this);
+
             long limit = unidirectional ? _sendLimits.MaxStreamsUni : _sendLimits.MaxStreamsBidi;
-
-            // atomically increment the respective counter
-            int priorCounter = Volatile.Read(ref counter);
-            bool success;
-            do
+            if (index < limit)
             {
-                if (priorCounter == limit)
-                {
-                    // TODO-RZ: use messages from string resources
-                    throw new QuicException("Cannot open stream");
-                }
+                // we are within advertised stream limits
+                stream.NotifyStarted();
+                return new ValueTask<ManagedQuicStream>(stream);
+            }
 
-                int interlockedResult = Interlocked.CompareExchange(ref counter, priorCounter + 1, priorCounter);
-                success = interlockedResult == priorCounter;
-                priorCounter = interlockedResult;
-            } while (!success);
+            // wait until peer increases the stream limits
+            return WaitForStreamStart(stream, cancellationToken);
 
-            // priorCounter now holds the index of the newly opened stream
-            return new ValueTask<ManagedQuicStream>(_streams.GetOrCreateStream(StreamHelpers.ComposeStreamId(type, priorCounter), _localTransportParameters, _peerTransportParameters, true, this));
+            static async ValueTask<ManagedQuicStream> WaitForStreamStart(ManagedQuicStream stream, CancellationToken cancellationToken)
+            {
+                await stream.WaitForStartAsync(cancellationToken).ConfigureAwait(false);
+                return stream;
+            }
         }
 
         /// <summary>

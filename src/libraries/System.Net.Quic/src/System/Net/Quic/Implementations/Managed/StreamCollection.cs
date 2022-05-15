@@ -5,7 +5,7 @@
 
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Immutable;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Streams;
@@ -22,7 +22,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// <summary>
         ///     All streams by their id;
         /// </summary>
-        private ImmutableDictionary<long, ManagedQuicStream> _streams = ImmutableDictionary<long, ManagedQuicStream>.Empty;
+        private ConcurrentDictionary<long, ManagedQuicStream> _streams = new ConcurrentDictionary<long, ManagedQuicStream>();
 
         /// <summary>
         ///     Number of total streams by their type.
@@ -135,7 +135,7 @@ namespace System.Net.Quic.Implementations.Managed
                         long nextId = StreamHelpers.ComposeStreamId(type, _streamCounts[(int)type]);
 
                         var stream = CreateStream(nextId, isLocal, unidirectional, localParams, remoteParams, connection);
-                        if (ImmutableInterlocked.TryAdd(ref _streams, nextId, stream))
+                        if (_streams.TryAdd(nextId, stream))
                         {
                             _streamCounts[(int)type]++;
                         }
@@ -150,7 +150,7 @@ namespace System.Net.Quic.Implementations.Managed
                 }
             }
 
-            return _streams[streamId];
+            return _streams[streamId]!;
         }
 
         private static ManagedQuicStream CreateStream(long streamId,
