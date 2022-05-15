@@ -153,7 +153,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         protected internal abstract bool
             OnConnectionStateChanged(ManagedQuicConnection connection, QuicConnectionState newState);
 
-        protected class ReceiveOperationAsyncSocketArgs : SocketAsyncEventArgs
+        protected sealed class ReceiveOperationAsyncSocketArgs : SocketAsyncEventArgs
         {
             public ResettableCompletionSource<SocketReceiveFromResult> CompletionSource { get; } =
                 new ResettableCompletionSource<SocketReceiveFromResult>();

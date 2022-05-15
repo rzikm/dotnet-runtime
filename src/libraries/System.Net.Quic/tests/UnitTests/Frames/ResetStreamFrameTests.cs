@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Threading.Tasks;
 using System.Net.Quic.Implementations.Managed;
 using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Frames;
@@ -19,9 +20,9 @@ namespace System.Net.Quic.Tests.Frames
         }
 
         [Fact]
-        public void CausesReadStreamOperationsToThrow()
+        public async Task CausesReadStreamOperationsToThrow()
         {
-            var stream = Client.OpenStream(false);
+            var stream = await Client.OpenStream(false);
             long errorCode = 15;
 
             Server.Ping();
@@ -73,9 +74,9 @@ namespace System.Net.Quic.Tests.Frames
         }
 
         [Fact]
-        public void RetransmittedAfterLoss()
+        public async Task RetransmittedAfterLoss()
         {
-            var stream = Client.OpenStream(false);
+            var stream = await Client.OpenStream(false);
             long errorCode = 15;
             stream.AbortWrite(errorCode);
 

@@ -21,8 +21,7 @@
   </ItemGroup>
   <!-- Source files -->
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' != ''">
-    <Compile Include="System\Net\Quic\Implementations\Managed\*.cs" />
-    <Compile Include="System\Net\Quic\Implementations\Managed\Internal\**\*.cs" />
+    <Compile Include="System\Net\Quic\Implementations\Managed\**\*.cs" />
     <Compile Include="System\Net\Quic\**\*.cs" Exclude="System\Net\Quic\*.Unsupported.cs"/>
     <!-- System.Net common -->
     <Compile Include="$(CommonPath)DisableRuntimeMarshalling.cs" Link="Common\DisableRuntimeMarshalling.cs" />
@@ -121,7 +120,6 @@
     <Reference Include="System.Security.Cryptography" />
     <Reference Include="System.Threading" />
     <Reference Include="System.Threading.Channels" />
-    <!-- Managed QUIC only:-->
     <Reference Include="System.Collections.Immutable" />
     <Reference Include="System.Text.Json" />
   </ItemGroup>
@@ -202,9 +200,5 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="C:\source\runtime\src\libraries\System.Net.Quic\src\System\Net\Quic\Implementations\Managed\Internal\Interop.OpenSsl.cs" />
   </ItemGroup>
 </Project>

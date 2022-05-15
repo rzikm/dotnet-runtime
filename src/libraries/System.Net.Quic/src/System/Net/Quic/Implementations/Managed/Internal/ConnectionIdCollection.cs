@@ -9,7 +9,7 @@ using System.Threading;
 
 namespace System.Net.Quic.Implementations.Managed.Internal
 {
-    internal class ConnectionIdCollection
+    internal sealed class ConnectionIdCollection
     {
         // array of connection ids kept sorted by sequence number
         private ImmutableArray<ConnectionId> _connectionIds;

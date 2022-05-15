@@ -10,7 +10,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Frames;
 namespace System.Net.Quic.Implementations.Managed
 {
     [DebuggerDisplay("[$ErrorCode] $ReasonPhrase ($FrameType)")]
-    internal class QuicError
+    internal sealed class QuicError
     {
         internal TransportErrorCode ErrorCode { get; }
         internal FrameType FrameType { get; }

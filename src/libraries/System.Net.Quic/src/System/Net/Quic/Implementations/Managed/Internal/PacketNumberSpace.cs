@@ -11,7 +11,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
     /// <summary>
     ///     Class for aggregating all connection data for a single packet number space.
     /// </summary>
-    internal class PacketNumberSpace
+    internal sealed class PacketNumberSpace
     {
         public PacketNumberSpace(PacketType packetType, PacketSpace packetSpace)
         {

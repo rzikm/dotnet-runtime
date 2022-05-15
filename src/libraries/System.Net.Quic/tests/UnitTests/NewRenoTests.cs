@@ -50,12 +50,12 @@ namespace System.Net.Quic.Tests
         public void ReducesWindowAfterCongestionEvent()
         {
             int window = recovery.CongestionWindow;
-            reno.OnCongestionEvent(recovery, Now - Timestamp.FromMilliseconds(15), Now);
+            NewRenoCongestionController.OnCongestionEvent(recovery, Now - Timestamp.FromMilliseconds(15), Now);
 
             Assert.Equal(window / 2, recovery.CongestionWindow);
 
             // further congestion events should not change the window
-            reno.OnCongestionEvent(recovery, Now - Timestamp.FromMilliseconds(15), Now);
+            NewRenoCongestionController.OnCongestionEvent(recovery, Now - Timestamp.FromMilliseconds(15), Now);
             Assert.Equal(window / 2, recovery.CongestionWindow);
         }
 
@@ -69,7 +69,7 @@ namespace System.Net.Quic.Tests
             reno.OnPacketSent(recovery, packet);
             reno.OnPacketSent(recovery, packet);
 
-            reno.OnCongestionEvent(recovery, Now, Now + Timestamp.FromMilliseconds(15));
+            NewRenoCongestionController.OnCongestionEvent(recovery, Now, Now + Timestamp.FromMilliseconds(15));
             int window = recovery.CongestionWindow;
             reno.OnPacketAcked(recovery, packet, Now); // sent before congestion recovery started
             Assert.Equal(window, recovery.CongestionWindow);
@@ -87,7 +87,7 @@ namespace System.Net.Quic.Tests
 
             // experience congestion to set slow start threshold
             int window = recovery.CongestionWindow;
-            reno.OnCongestionEvent(recovery, Now, Now + Timestamp.FromMilliseconds(15));
+            NewRenoCongestionController.OnCongestionEvent(recovery, Now, Now + Timestamp.FromMilliseconds(15));
             Assert.Equal(window/2, recovery.CongestionWindow);
 
             // send another packet some time later

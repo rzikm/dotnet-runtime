@@ -26,10 +26,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Frames
             IsChallenge = isChallenge;
         }
 
-        internal int GetSerializedLength()
+        internal static int GetSerializedLength()
         {
-            return 1 +
-                   sizeof(long);
+            return 1 + sizeof(long);
         }
 
         internal static bool Read(QuicReader reader, out PathChallengeFrame frame)
@@ -49,7 +48,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Frames
 
         internal static void Write(QuicWriter writer, in PathChallengeFrame frame)
         {
-            Debug.Assert(writer.BytesAvailable >= frame.GetSerializedLength());
+            Debug.Assert(writer.BytesAvailable >= PathChallengeFrame.GetSerializedLength());
 
             writer.WriteFrameType(frame.IsChallenge ? FrameType.PathChallenge : FrameType.PathResponse);
 

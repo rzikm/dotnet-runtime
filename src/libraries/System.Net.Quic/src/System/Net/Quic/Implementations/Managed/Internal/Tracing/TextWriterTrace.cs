@@ -8,7 +8,7 @@ using System.Text;
 
 namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
 {
-    internal class TextWriterTrace : IQuicTrace
+    internal sealed class TextWriterTrace : IQuicTrace
     {
         private readonly TextWriter _output;
         private readonly bool _isServer;

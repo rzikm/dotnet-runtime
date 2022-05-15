@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal class ManagedQuicListener : QuicListenerProvider
+    internal sealed class ManagedQuicListener : QuicListenerProvider
     {
         private bool _disposed;
 
@@ -24,7 +24,9 @@ namespace System.Net.Quic.Implementations.Managed
 
             var channel = Channel.CreateBounded<ManagedQuicConnection>(new BoundedChannelOptions(options.ListenBacklog)
             {
-                SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.DropWrite
+                SingleReader = true,
+                SingleWriter = true,
+                FullMode = BoundedChannelFullMode.DropWrite
             });
 
             _acceptQueue = channel.Reader;
