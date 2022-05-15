@@ -145,8 +145,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (SendStream!.Error != null) return;
 
-            SendStream.RequestAbort(errorCode);
-            _shutdownCompleted.TryCompleteException(new QuicStreamAbortedException("Stream was aborted", errorCode));
+            SendStream.RequestAbort(errorCode, true);
             _connection.OnStreamStateUpdated(this);
         }
 
@@ -247,7 +246,6 @@ namespace System.Net.Quic.Implementations.Managed
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
-            ThrowIfNotWritable();
 
             SendStream!.MarkEndOfData();
             await SendStream!.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
@@ -263,7 +261,14 @@ namespace System.Net.Quic.Implementations.Managed
         }
 
         // TODO:
-        internal override ValueTask WaitForWriteCompletionAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        internal override ValueTask WaitForWriteCompletionAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            ThrowIfConnectionError();
+            ThrowIfNotWritable();
+
+            return SendStream!.WaitForWriteCompletion(cancellationToken);
+        }
 
         internal async ValueTask WaitForStartAsync(CancellationToken cancellationToken)
         {
@@ -299,7 +304,6 @@ namespace System.Net.Quic.Implementations.Managed
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
-            ThrowIfNotWritable();
 
             if (CanWrite)
             {
@@ -394,10 +398,7 @@ namespace System.Net.Quic.Implementations.Managed
             }
 
             // SendStream not null is implied by CanWrite
-            if (SendStream!.Error != null)
-            {
-                throw new QuicStreamAbortedException("Writing was aborted on the stream", SendStream.Error.Value);
-            }
+            SendStream!.ThrowIfAborted();
         }
 
         private void ThrowIfNotReadable()
