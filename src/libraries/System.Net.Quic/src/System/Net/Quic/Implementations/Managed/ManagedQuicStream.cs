@@ -185,14 +185,15 @@ namespace System.Net.Quic.Implementations.Managed
             return WriteAsync(buffer, false, cancellationToken);
         }
 
-        internal override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool endStream, CancellationToken cancellationToken = default)
+        internal override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool endStream, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
             ThrowIfNotWritable();
 
             // TODO-RZ: optimize away some of the copying
-            return WriteAsyncInternal(buffer, endStream, cancellationToken);
+            await WriteAsyncInternal(buffer, endStream, cancellationToken).ConfigureAwait(false);
+            await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         internal override async ValueTask WriteAsync(ReadOnlySequence<byte> buffers, CancellationToken cancellationToken = default)
@@ -205,6 +206,8 @@ namespace System.Net.Quic.Implementations.Managed
             {
                 await WriteAsyncInternal(buffer, false, cancellationToken).ConfigureAwait(false);
             }
+
+            await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         internal override async ValueTask WriteAsync(ReadOnlySequence<byte> buffers, bool endStream, CancellationToken cancellationToken = default)
@@ -215,10 +218,10 @@ namespace System.Net.Quic.Implementations.Managed
 
             foreach (ReadOnlyMemory<byte> buffer in buffers)
             {
-                await WriteAsyncInternal(buffer, false, cancellationToken).ConfigureAwait(false);
+                await WriteAsyncInternal(buffer, endStream, cancellationToken).ConfigureAwait(false);
             }
 
-            SendStream!.MarkEndOfData();
+            await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         internal override ValueTask WriteAsync(ReadOnlyMemory<ReadOnlyMemory<byte>> buffers, CancellationToken cancellationToken = default)
@@ -236,6 +239,8 @@ namespace System.Net.Quic.Implementations.Managed
             {
                 await WriteAsyncInternal(buffers.Span[i], endStream && i == buffers.Length - 1, cancellationToken).ConfigureAwait(false);
             }
+
+            await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         internal override async ValueTask ShutdownCompleted(CancellationToken cancellationToken = default)
