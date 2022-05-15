@@ -55,7 +55,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         private readonly Channel<StreamChunk> _toSendChannel =
             Channel.CreateUnbounded<StreamChunk>(new UnboundedChannelOptions
             {
-                SingleReader = true, SingleWriter = true
+                SingleReader = true,
+                SingleWriter = true
             });
 
         /// <summary>
@@ -510,7 +511,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             }
         }
 
+#pragma warning disable CA1822 // mark as static
         public void OnFatalException(Exception exception)
+#pragma warning restore CA1822 // mark as static
         {
             // TODO-RZ: handle callers blocking on other async tasks
         }

@@ -9,7 +9,7 @@ using System.Diagnostics;
 
 namespace System.Net.Quic.Implementations.Managed.Internal
 {
-    internal class ConnectionId : IEquatable<ConnectionId>
+    internal sealed class ConnectionId : IEquatable<ConnectionId>
     {
         /// <summary>
         ///     Maximum connection id length for the non-version negotiation packets. (Future versions may allow larger
@@ -25,7 +25,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         public static ConnectionId Random(int length)
         {
-            Debug.Assert((uint) length <= 20, "Maximum connection id length is 20");
+            Debug.Assert((uint)length <= 20, "Maximum connection id length is 20");
             var bytes = new byte[length];
 
             lock (_random)
@@ -91,7 +91,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 return false;
             }
 
-            return Equals((ConnectionId) obj);
+            return Equals((ConnectionId)obj);
         }
 
         public override int GetHashCode() => ((IStructuralEquatable)Data).GetHashCode(EqualityComparer<byte>.Default);

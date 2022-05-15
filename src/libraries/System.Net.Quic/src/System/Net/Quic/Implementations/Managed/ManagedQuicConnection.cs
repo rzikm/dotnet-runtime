@@ -724,24 +724,20 @@ namespace System.Net.Quic.Implementations.Managed
             return _connectTcs.GetTask();
         }
 
-        internal override ValueTask WaitForAvailableUnidirectionalStreamsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-
-        internal override ValueTask WaitForAvailableBidirectionalStreamsAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-
-        internal override QuicStreamProvider OpenUnidirectionalStream()
+        internal async override ValueTask<QuicStreamProvider> OpenUnidirectionalStreamAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfError();
 
-            return OpenStream(true);
+            return await OpenStream(true).ConfigureAwait(false);
         }
 
-        internal override QuicStreamProvider OpenBidirectionalStream()
+        internal async override ValueTask<QuicStreamProvider> OpenBidirectionalStreamAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfError();
 
-            return OpenStream(false);
+            return await OpenStream(false).ConfigureAwait(false);
         }
 
         internal override int GetRemoteAvailableUnidirectionalStreamCount()
@@ -915,7 +911,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         private QuicException MakeOperationAbortedException()
         {
-            return _inboundError  != null
+            return _inboundError != null
                 ? MakeConnectionAbortedException(_inboundError) // initiated by peer
                 : new QuicOperationAbortedException(); // initiated by us
         }

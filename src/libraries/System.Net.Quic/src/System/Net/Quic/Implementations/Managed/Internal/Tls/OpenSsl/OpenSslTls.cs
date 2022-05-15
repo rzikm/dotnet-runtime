@@ -455,7 +455,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
             return 1;
         }
 
-        private static unsafe int AlpnSelectCbImpl(IntPtr ssl, ref byte* pOut, ref byte outLen, byte* pIn, int inLen, IntPtr arg)
+        private static unsafe int AlpnSelectCbImpl(IntPtr ssl, byte** pOut, byte* outLen, byte* pIn, int inLen, IntPtr arg)
         {
             var tls = GetTlsInstance(ssl);
             var localProtocols = tls._alpnProtocols;
@@ -479,8 +479,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
                     if (localProtocols[i].Protocol.Span.SequenceEqual(remoteProtocol))
                     {
                         // accept the protocol
-                        outLen = (byte) length;
-                        pOut = (byte*) Unsafe.AsPointer(ref MemoryMarshal.GetReference(remoteProtocol));
+                        *outLen = (byte)length;
+                        *pOut = (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(remoteProtocol));
 
                         return Interop.OpenSslQuic.SSL_TLSEXT_ERR_OK;
                     }

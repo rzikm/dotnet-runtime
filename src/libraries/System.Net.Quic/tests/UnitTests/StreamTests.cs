@@ -31,10 +31,10 @@ namespace System.Net.Quic.Tests
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void SimpleStreamOpen(bool unidirectional)
+        public async Task SimpleStreamOpen(bool unidirectional)
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(unidirectional);
+            var clientStream = await Client.OpenStream(unidirectional);
             Assert.True(clientStream.CanWrite);
             Assert.Equal(!unidirectional, clientStream.CanRead);
             clientStream.Write(data);
@@ -61,10 +61,10 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void SendsFinWithLastFrame()
+        public async Task SendsFinWithLastFrame()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
             clientStream.Shutdown();
@@ -77,10 +77,10 @@ namespace System.Net.Quic.Tests
 
 
         [Fact]
-        public void SendsEmptyStreamFrameWithFin()
+        public async Task SendsEmptyStreamFrameWithFin()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
 
             // send data before marking end of stream
             clientStream.Write(data);
@@ -106,10 +106,10 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void ClosesConnectionWhenStreamLimitIsExceeded()
+        public async Task ClosesConnectionWhenStreamLimitIsExceeded()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
             Intercept1RttFrame<StreamFrame>(Client, Server, frame =>
@@ -125,10 +125,10 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void ClosesConnectionWhenSendingPastMaxRepresentableOffset()
+        public async Task ClosesConnectionWhenSendingPastMaxRepresentableOffset()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
             Intercept1RttFrame<StreamFrame>(Client, Server,
@@ -141,10 +141,10 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void ClosesConnectionWhenSendingPastFin()
+        public async Task ClosesConnectionWhenSendingPastFin()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
             Intercept1RttFrame<StreamFrame>(Client, Server,
@@ -157,10 +157,10 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void ClosesConnectionWhenSendingInNonReadableStream()
+        public async Task ClosesConnectionWhenSendingInNonReadableStream()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
             Intercept1RttFrame<StreamFrame>(Client, Server, frame =>
@@ -176,10 +176,10 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void ClosesConnectionWhenSendingPastStreamMaxData()
+        public async Task ClosesConnectionWhenSendingPastStreamMaxData()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
             Intercept1RttFrame<StreamFrame>(Client, Server,
@@ -192,10 +192,10 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void ClosesConnectionWhenSendingPastConnectionMaxData()
+        public async Task ClosesConnectionWhenSendingPastConnectionMaxData()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
             Intercept1RttFrame<StreamFrame>(Client, Server,
@@ -208,10 +208,10 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void ResendsDataAfterLoss()
+        public async Task ResendsDataAfterLoss()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
-            var clientStream = Client.OpenStream(true);
+            var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
 
@@ -235,12 +235,12 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void ClosesConnectionOnInvalidStreamId_StreamMaxDataFrame()
+        public async Task ClosesConnectionOnInvalidStreamId_StreamMaxDataFrame()
         {
             byte[] data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
             byte[] recvBuf = new byte[data.Length];
 
-            var senderStream = Client.OpenStream(true);
+            var senderStream = await Client.OpenStream(true);
             senderStream.Write(data);
             senderStream.Flush();
             Send1Rtt(Client, Server);
@@ -268,7 +268,7 @@ namespace System.Net.Quic.Tests
         [Fact]
         public async Task ShutdownCompleted_Cancelled()
         {
-            var stream = Client.OpenStream(true);
+            var stream = await Client.OpenStream(true);
             var cts = new CancellationTokenSource();
             var testTask = Assert.ThrowsAsync<OperationCanceledException>(
                 () => stream.ShutdownCompleted(cts.Token).AsTask());
@@ -282,7 +282,7 @@ namespace System.Net.Quic.Tests
         [Fact]
         public async Task ShutdownCompleted_CompletedOnConnectionClose()
         {
-            var stream = Client.OpenStream(true);
+            var stream = await Client.OpenStream(true);
             var shutdownWriteCompletedTask = stream.ShutdownCompleted();
 
             // receiving connection close implicitly closes all streams
@@ -302,7 +302,7 @@ namespace System.Net.Quic.Tests
         [Fact]
         public async Task ShutdownCompleted_ExceptionWhenWriteAborted()
         {
-            var stream = Client.OpenStream(true);
+            var stream = await Client.OpenStream(true);
             var testTask =
                 Assert.ThrowsAsync<QuicStreamAbortedException>(async () => await stream.ShutdownCompleted());
 
@@ -312,9 +312,9 @@ namespace System.Net.Quic.Tests
         }
 
         [Fact]
-        public void AbortRead_ShouldElicitStopSendingFrame()
+        public async Task AbortRead_ShouldElicitStopSendingFrame()
         {
-            var stream = Client.OpenStream(false);
+            var stream = await Client.OpenStream(false);
             long errorCode = 15;
             stream.AbortRead(errorCode);
 

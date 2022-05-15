@@ -15,7 +15,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
     /// <summary>
     ///     Class for tracing QuicConnection events
     /// </summary>
-    internal class QlogTrace : IDisposable, IQuicTrace
+    internal sealed class QlogTrace : IDisposable, IQuicTrace
     {
         private static readonly Dictionary<PacketType, byte[]> _packetTypeNames = new Dictionary<PacketType, byte[]>
         {
@@ -208,14 +208,14 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
         }
 
         // member is explicitly initialized to its default value
-        #pragma warning disable CA1805
+#pragma warning disable CA1805
         // switches for verbosity logging
         // TODO-RZ: it might be good idea to make this configurable somehow
         private bool _logDatagrams = false;
         private bool _logRecovery = true;
         private bool _logSecurity = true;
         private bool _logTransport = true;
-        #pragma warning restore CA1805
+#pragma warning restore CA1805
 
         private readonly Utf8JsonWriter _writer;
         private readonly Stream _stream;

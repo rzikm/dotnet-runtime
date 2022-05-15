@@ -9,7 +9,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
     /// <summary>
     ///     Helper class for writing QUIC primitives to a byte buffer.
     /// </summary>
-    internal class QuicWriter
+    internal sealed class QuicWriter
     {
         // underlying buffer to which data are being written.
         private Memory<byte> _buffer;

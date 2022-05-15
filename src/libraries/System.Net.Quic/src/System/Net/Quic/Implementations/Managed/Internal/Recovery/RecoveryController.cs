@@ -13,7 +13,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
     /// <summary>
     ///     Class encapsulating logic on packet loss recovery.
     /// </summary>
-    internal class RecoveryController
+    internal sealed class RecoveryController
     {
         internal const int MaxDatagramSize = 1452;
 
@@ -62,7 +62,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
         /// <summary>
         ///     Helper structure for holding packet number space related data together.
         /// </summary>
-        internal class PacketNumberSpace
+        internal sealed class PacketNumberSpace
         {
             internal static readonly Comparer<PacketNumberSpace> LossTimeComparer = Comparer<PacketNumberSpace>.Create(
                 (l, r) => l.NextLossTime.CompareTo(r.NextLossTime));
@@ -208,7 +208,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
         /// </summary>
         internal int GetAvailableCongestionWindowBytes()
         {
-             return Math.Max(0, CongestionWindow - BytesInFlight);
+            return Math.Max(0, CongestionWindow - BytesInFlight);
         }
 
         /// <summary>
@@ -228,12 +228,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
             // we will approximate the pacer by calculating the sending rate based on the current
             // RTT and congestion window width
 
-            _rate = CongestionWindow / (double) SmoothedRtt;
+            _rate = CongestionWindow / (double)SmoothedRtt;
 
             // and we use this rate to gauge how much can we send now
             long elapsed = timestamp - LastDatagramSentTimestamp;
 
-            int allowance = (int) (CongestionWindow * elapsed / SmoothedRtt);
+            int allowance = (int)(CongestionWindow * elapsed / SmoothedRtt);
             allowance = Math.Min(allowance, GetAvailableCongestionWindowBytes());
             // do not send more than half the current congestion window
             allowance = Math.Min(allowance, CongestionWindow / 2);
@@ -379,7 +379,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
             {
                 _binarySearchPacket.PacketNumber = largestAcked;
                 int index = pnSpace.SentPackets.BinarySearch(_binarySearchPacket, SentPacket.PacketNumberComparer);
-                if ((uint) index < pnSpace.SentPackets.Count)
+                if ((uint)index < pnSpace.SentPackets.Count)
                 {
                     largestAckedPacket = pnSpace.SentPackets[index];
                 }
@@ -510,11 +510,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
             return epoch;
         }
 
-        private bool PeerNotAwaitingAddressValidation()
+        private static bool PeerNotAwaitingAddressValidation()
         {
             // Assume clients validate the server's address implicitly.
             // if (_isServer)
-                // return true;
+            // return true;
 
             // servers complete address validation when a protected packet is received
             // TODO-RZ: Implement peer address validation.

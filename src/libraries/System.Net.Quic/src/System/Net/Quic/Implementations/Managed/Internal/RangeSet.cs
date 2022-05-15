@@ -10,7 +10,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
     /// <summary>
     ///     Container for storing numbers with efficient range queries and insertions. The values are maintained in a list of ranges.
     /// </summary>
-    internal class RangeSet : IEnumerable<RangeSet.Range>
+    internal sealed class RangeSet : IEnumerable<RangeSet.Range>
     {
         private List<Range> _ranges;
 

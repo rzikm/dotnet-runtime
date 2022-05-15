@@ -13,7 +13,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
     /// <summary>
     ///     Wrapper around the currently used QUIC transport parameters.
     /// </summary>
-    internal class TransportParameters
+    internal sealed class TransportParameters
     {
         // limits from RFC
         internal const long MinimumPacketSize = 1200;
@@ -194,14 +194,14 @@ namespace System.Net.Quic.Implementations.Managed.Internal
                 }
 
                 ReadOnlySpan<byte> data = buffer.Slice(read, (int)len);
-                buffer = buffer.Slice((int) len + read);
+                buffer = buffer.Slice((int)len + read);
 
                 // mark presence of parameter
                 if ((int)name < presentParameters.Length)
                     presentParameters[(int)name] = true;
 
                 long varIntValue;
-                switch ((TransportParameterName) name)
+                switch ((TransportParameterName)name)
                 {
                     case TransportParameterName.OriginalConnectionId:
                         if (len > ConnectionId.MaximumLength)
@@ -291,7 +291,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
             return true;
 
-            Error:
+        Error:
             parameters = null;
             return false;
         }

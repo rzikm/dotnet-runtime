@@ -15,7 +15,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
     /// </summary>
     internal sealed class ReceiveStream
     {
-        private int ReorderBuffersSize => QuicBufferPool.BufferSize;
+        private static int ReorderBuffersSize => QuicBufferPool.BufferSize;
 
         private object SyncObject => _deliverableChannel;
 
@@ -35,7 +35,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         private readonly Channel<StreamChunk> _deliverableChannel =
             Channel.CreateUnbounded<StreamChunk>(new UnboundedChannelOptions
             {
-                SingleReader = true, SingleWriter = true
+                SingleReader = true,
+                SingleWriter = true
             });
 
         /// <summary>
@@ -292,8 +293,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
                 long recvBufStart = _bytesQueued - _bytesQueued % ReorderBuffersSize;
                 while (!data.IsEmpty)
                 {
-                    int recvBufIndex = (int) ((offset - recvBufStart) / ReorderBuffersSize);
-                    int recvBufOffset = (int) (offset % ReorderBuffersSize);
+                    int recvBufIndex = (int)((offset - recvBufStart) / ReorderBuffersSize);
+                    int recvBufOffset = (int)(offset % ReorderBuffersSize);
 
                     // make sure we have enough buffers, note that the protocol's Flow Control feature should
                     // limit maximum number of buffers we have allocated at any moment.
@@ -442,7 +443,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             }
         }
 
-        private void ReturnMemory(in StreamChunk chunk)
+        private static void ReturnMemory(in StreamChunk chunk)
         {
             if (chunk.Buffer == null)
             {
@@ -464,7 +465,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             }
         }
 
-        private void ReturnBuffer(byte[] buffer)
+        private static void ReturnBuffer(byte[] buffer)
         {
             QuicBufferPool.Return(buffer);
         }

@@ -9,7 +9,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
     /// <summary>
     ///     Helper class for reading QUIC primitives from a byte array.
     /// </summary>
-    internal class QuicReader
+    internal sealed class QuicReader
     {
         // Underlying buffer from which data are read.
         private Memory<byte> _buffer;
@@ -103,7 +103,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         internal bool TryReadVarInt(out long result)
         {
-            int bytes =  QuicPrimitives.TryReadVarInt(PeekRestOfBuffer(), out result);
+            int bytes = QuicPrimitives.TryReadVarInt(PeekRestOfBuffer(), out result);
             Advance(bytes);
             return bytes > 0;
         }

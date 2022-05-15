@@ -10,7 +10,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
     /// <summary>
     ///     Implementation of the reference congestion controll algorithm for QUIC based on the [RECOVERY] draft.
     /// </summary>
-    internal class NewRenoCongestionController : ICongestionController
+    internal sealed class NewRenoCongestionController : ICongestionController
     {
         internal static readonly NewRenoCongestionController Instance = new NewRenoCongestionController();
 
@@ -85,12 +85,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
             }
         }
 
-        private bool InCongestionRecovery(RecoveryController recovery, long sentTimestamp)
+        private static bool InCongestionRecovery(RecoveryController recovery, long sentTimestamp)
         {
             return sentTimestamp < recovery.CongestionRecoveryStartTime;
         }
 
-        private bool InPersistentCongestion(SentPacket largestLostPacket)
+        private static bool InPersistentCongestion(SentPacket largestLostPacket)
         {
             // var pto = SmoothedRtt.Ticks + Math.Max(4 * RttVariation.Ticks, Recovery.TimerGranularity.Ticks) +
             // MaxAckDelay.Ticks;
@@ -100,7 +100,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
             return false;
         }
 
-        internal void OnCongestionEvent(RecoveryController recovery, long sentTimestamp, long now)
+        internal static void OnCongestionEvent(RecoveryController recovery, long sentTimestamp, long now)
         {
             // start a new congestion event if packet was sent after the start of the previous congestion recovery period
             if (InCongestionRecovery(recovery, sentTimestamp))

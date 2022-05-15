@@ -6,6 +6,7 @@ using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Frames;
 using System.Net.Quic.Implementations.Managed.Internal.Streams;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed
 {
@@ -81,7 +82,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         /// <param name="unidirectional">True if the stream should be unidirectional.</param>
         /// <returns></returns>
-        internal ManagedQuicStream OpenStream(bool unidirectional)
+        internal ValueTask<ManagedQuicStream> OpenStream(bool unidirectional)
         {
             var type = StreamHelpers.GetLocallyInitiatedType(IsServer, unidirectional);
             ref int counter = ref (unidirectional ? ref _uniStreamsOpened : ref _bidirStreamsOpened);
@@ -104,7 +105,7 @@ namespace System.Net.Quic.Implementations.Managed
             } while (!success);
 
             // priorCounter now holds the index of the newly opened stream
-            return _streams.GetOrCreateStream(StreamHelpers.ComposeStreamId(type, priorCounter), _localTransportParameters, _peerTransportParameters, true, this);
+            return new ValueTask<ManagedQuicStream>(_streams.GetOrCreateStream(StreamHelpers.ComposeStreamId(type, priorCounter), _localTransportParameters, _peerTransportParameters, true, this));
         }
 
         /// <summary>
