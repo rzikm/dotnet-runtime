@@ -45,6 +45,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         internal bool FinAcked { get; private set; }
 
         /// <summary>
+        ///     Is completed when all data are sent (and acknowledged), or when stream is aborted.
+        /// </summary>
+        internal SingleEventValueTaskSource _writesCompleted = new SingleEventValueTaskSource();
+
+        /// <summary>
         ///     Chunk to be filled from user data.
         /// </summary>
         private StreamChunk _toBeQueuedChunk = new StreamChunk(0, ReadOnlyMemory<byte>.Empty, QuicBufferPool.Rent());
@@ -73,6 +78,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         ///     Error code if the stream was aborted.
         /// </summary>
         internal long? Error { get; private set; }
+
+        /// <summary>
+        ///     If true, the stream was reset by this side.
+        /// </summary>
+        internal bool ResetByUs { get; private set; }
 
         public SendStream(long maxData)
         {
@@ -127,27 +137,34 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         ///     Requests that the outbound stream be aborted with given error code.
         /// </summary>
         /// <param name="errorCode"></param>
-        internal void RequestAbort(long errorCode)
+        /// <param name="byUs"></param>
+        internal void RequestAbort(long errorCode, bool byUs)
         {
-            // TODO-RZ: this is the only situation when state is set from user thread, maybe we can
+            // TODO-RZ: this function is the only way to set the state from user thread, maybe we can
             // find a way to remove the need for the lock
-            if (StreamState >= SendStreamState.WantReset)
+
+            if (StreamState >= SendStreamState.DataReceived)
             {
+                // either terminal state, or resetting, no action
                 return;
             }
 
             lock (SyncObject)
             {
-                if (StreamState >= SendStreamState.WantReset)
+                if (StreamState >= SendStreamState.DataReceived)
                 {
+                    // either terminal state, or resetting, no action
                     return;
                 }
+
+                ResetByUs = byUs;
 
                 Debug.Assert(Error == null);
                 Error = errorCode;
                 StreamState = SendStreamState.WantReset;
             }
 
+            _writesCompleted.TryCompleteException(new QuicOperationAbortedException("Write was aborted."));
             _toSendChannel.Writer.TryComplete();
             if (_toBeQueuedChunk.Buffer != null)
             {
@@ -428,6 +445,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             {
                 Debug.Assert(offset + count == WrittenBytes);
                 FinAcked = true;
+
             }
 
             if (count > 0)
@@ -474,6 +492,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
                     if (StreamState == SendStreamState.DataSent)
                     {
                         StreamState = SendStreamState.DataReceived;
+                        _writesCompleted.TryComplete();
                     }
                 }
             }
@@ -486,6 +505,16 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             // the semaphore is released when stream is aborted to make the caller writer throw
             ThrowIfAborted();
             return QuicBufferPool.Rent();
+        }
+
+        internal async ValueTask WaitForWriteCompletion(CancellationToken cancellationToken)
+        {
+            using CancellationTokenRegistration registration = cancellationToken.UnsafeRegister(static (s, token) =>
+            {
+                ((SendStream?)s)!._writesCompleted.TryCompleteException(new OperationCanceledException("Wait was canceled", token));
+            }, this);
+
+            await _writesCompleted.GetTask().ConfigureAwait(false);
         }
 
         private async ValueTask<byte[]> RentBufferAsync(CancellationToken cancellationToken)
@@ -503,11 +532,18 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             _bufferLimitSemaphore.Release();
         }
 
-        private void ThrowIfAborted()
+        internal void ThrowIfAborted()
         {
             if (Error != null)
             {
-                throw new QuicStreamAbortedException("Stream aborted", Error.Value);
+                if (ResetByUs)
+                {
+                    throw new QuicOperationAbortedException();
+                }
+                else
+                {
+                    throw new QuicStreamAbortedException("Stream aborted", Error.Value);
+                }
             }
         }
 
