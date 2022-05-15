@@ -802,12 +802,24 @@ namespace System.Net.Quic.Implementations.Managed
             if (_socketContextException != null)
                 throw new Exception("Internal socket operation failed", _socketContextException);
 
-            var error = _inboundError ?? _outboundError;
-            // don't throw if connection was closed gracefully. By doing so, we still allow retrieving
-            // unread data/streams if the connection was closed by the peer.
-            if (error != null && error.ErrorCode != TransportErrorCode.NoError)
+            if (_outboundError != null)
             {
-                throw MakeConnectionAbortedException(error);
+                if (!_outboundError.IsQuicError)
+                {
+                    // connection close initiated by application
+                    throw new QuicOperationAbortedException();
+                }
+                else if (_outboundError.ErrorCode != TransportErrorCode.NoError)
+                {
+                    // connection close initiated by us (transport)
+                    throw MakeConnectionAbortedException(_outboundError);
+                }
+            }
+
+            if (_inboundError != null)
+            {
+                // connection close initiated by peer
+                throw MakeConnectionAbortedException(_inboundError);
             }
         }
 

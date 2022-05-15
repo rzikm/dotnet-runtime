@@ -87,7 +87,7 @@ namespace System.Net.Quic.Implementations.Managed
         {
             var type = StreamHelpers.GetLocallyInitiatedType(IsServer, unidirectional);
             ref long counter = ref (unidirectional ? ref _uniStreamsOpened : ref _bidirStreamsOpened);
-            long index = Interlocked.Increment(ref counter);
+            long index = Interlocked.Increment(ref counter) - 1;
 
             ManagedQuicStream stream = _streams.GetOrCreateStream(
                 StreamHelpers.ComposeStreamId(type, index), _localTransportParameters, _peerTransportParameters, true, this);
