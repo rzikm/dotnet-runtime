@@ -66,8 +66,6 @@ namespace System.Net.Quic
         public long? ApplicationErrorCode { get { throw null; } }
         public long? TransportErrorCode { get { throw null; } }
         public System.Net.Quic.QuicError QuicError { get { throw null; } }
-        public static System.Net.Quic.Implementations.QuicImplementationProvider Managed { get { throw null; } }
-        public static System.Net.Quic.Implementations.QuicImplementationProvider ManagedMockTls { get { throw null; } }
     }
     public sealed partial class QuicListener : System.IAsyncDisposable
     {
