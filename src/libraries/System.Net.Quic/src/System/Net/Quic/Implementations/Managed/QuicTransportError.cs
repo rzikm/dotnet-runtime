@@ -10,14 +10,14 @@ using System.Net.Quic.Implementations.Managed.Internal.Frames;
 namespace System.Net.Quic.Implementations.Managed
 {
     [DebuggerDisplay("[$ErrorCode] $ReasonPhrase ($FrameType)")]
-    internal sealed class QuicError
+    internal sealed class QuicTransportError
     {
         internal TransportErrorCode ErrorCode { get; }
         internal FrameType FrameType { get; }
         internal string? ReasonPhrase { get; }
         internal bool IsQuicError { get; }
 
-        public QuicError(TransportErrorCode errorCode, string? reasonPhrase = null, FrameType frameType = FrameType.Padding,
+        public QuicTransportError(TransportErrorCode errorCode, string? reasonPhrase = null, FrameType frameType = FrameType.Padding,
             bool isQuicError = true)
         {
             ErrorCode = errorCode;

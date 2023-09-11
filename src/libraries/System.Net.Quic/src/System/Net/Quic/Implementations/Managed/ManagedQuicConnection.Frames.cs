@@ -100,7 +100,7 @@ namespace System.Net.Quic.Implementations.Managed
 
                 if (!IsFrameAllowed(frameType, packetType))
                 {
-                    return CloseConnection(TransportErrorCode.ProtocolViolation, QuicError.FrameNotAllowed, frameType);
+                    return CloseConnection(TransportErrorCode.ProtocolViolation, QuicTransportError.FrameNotAllowed, frameType);
                 }
 
                 ackEliciting |= IsAckEliciting(frameType);
@@ -140,7 +140,7 @@ namespace System.Net.Quic.Implementations.Managed
                         continue;
                     case ProcessPacketResult.Error when _outboundError == null:
                         return CloseConnection(TransportErrorCode.FrameEncodingError,
-                            QuicError.UnableToDeserialize, frameType);
+                            QuicTransportError.UnableToDeserialize, frameType);
                 }
 
                 return result;
@@ -231,7 +231,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (frame.LargestAcknowledged >= pnSpace.NextPacketNumber || // acking future packet
                 frame.LargestAcknowledged < frame.FirstAckRange) // acking negative PN
-                return CloseConnection(TransportErrorCode.ProtocolViolation, QuicError.InvalidAckRange, FrameType.Ack);
+                return CloseConnection(TransportErrorCode.ProtocolViolation, QuicTransportError.InvalidAckRange, FrameType.Ack);
 
             Span<RangeSet.Range> ranges = frame.AckRangeCount < 16
                 ? stackalloc RangeSet.Range[(int)frame.AckRangeCount + 1]
@@ -240,7 +240,7 @@ namespace System.Net.Quic.Implementations.Managed
             if (!frame.TryDecodeAckRanges(ranges))
             {
                 return CloseConnection(TransportErrorCode.FrameEncodingError,
-                              QuicError.InvalidAckRange, frame.HasEcnCounts ? FrameType.AckWithEcn : FrameType.Ack);
+                              QuicTransportError.InvalidAckRange, frame.HasEcnCounts ? FrameType.AckWithEcn : FrameType.Ack);
             }
 
             var space = GetPacketSpace(packetType);
@@ -267,12 +267,12 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (!StreamHelpers.CanRead(IsServer, frame.StreamId))
                 return CloseConnection(TransportErrorCode.StreamStateError,
-                    QuicError.StreamNotReadable,
+                    QuicTransportError.StreamNotReadable,
                     FrameType.ResetStream);
 
             if (!TryGetOrCreateStream(frame.StreamId, out var stream))
                 return CloseConnection(TransportErrorCode.StreamLimitError,
-                    QuicError.StreamsLimitViolated,
+                    QuicTransportError.StreamsLimitViolated,
                     FrameType.ResetStream);
 
             // TODO-RZ: Return control flow budget
@@ -294,7 +294,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (!StreamHelpers.CanWrite(IsServer, frame.StreamId))
                 return CloseConnection(TransportErrorCode.StreamStateError,
-                    QuicError.StreamNotWritable,
+                    QuicTransportError.StreamNotWritable,
                     FrameType.StopSending);
 
             var stream = _streams.TryGetStream(frame.StreamId);
@@ -304,12 +304,12 @@ namespace System.Net.Quic.Implementations.Managed
                 // Streams are Created by sending a STREAM frame, if we didn't send anything, report error
                 !(stream?.SendStream?.UnsentOffset > 0))
                 return CloseConnection(TransportErrorCode.StreamStateError,
-                    QuicError.StreamNotCreated,
+                    QuicTransportError.StreamNotCreated,
                     FrameType.StopSending);
 
             if (stream == null && !TryGetOrCreateStream(frame.StreamId, out stream))
                 return CloseConnection(TransportErrorCode.StreamLimitError,
-                    QuicError.StreamsLimitViolated,
+                    QuicTransportError.StreamsLimitViolated,
                     FrameType.StopSending);
 
             Debug.Assert(stream!.CanWrite);
@@ -377,11 +377,11 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (!StreamHelpers.CanWrite(IsServer, frame.StreamId))
                 return CloseConnection(TransportErrorCode.StreamStateError,
-                    QuicError.NotInRecvState, FrameType.MaxStreamData);
+                    QuicTransportError.NotInRecvState, FrameType.MaxStreamData);
 
             if (!TryGetOrCreateStream(frame.StreamId, out var stream))
                 return CloseConnection(TransportErrorCode.StreamLimitError,
-                    QuicError.StreamsLimitViolated, FrameType.MaxStreamData);
+                    QuicTransportError.StreamsLimitViolated, FrameType.MaxStreamData);
 
             Debug.Assert(stream!.CanWrite);
 
@@ -460,7 +460,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (!TryGetOrCreateStream(frame.StreamId, out _))
                 return CloseConnection(TransportErrorCode.StreamLimitError,
-                    QuicError.StreamsLimitViolated,
+                    QuicTransportError.StreamsLimitViolated,
                     FrameType.StreamDataBlocked);
 
             // TODO-RZ: Implement STREAM_DATA_BLOCKED
@@ -492,7 +492,7 @@ namespace System.Net.Quic.Implementations.Managed
             if (DestinationConnectionId!.Data.Length == 0)
             {
                 return CloseConnection(TransportErrorCode.ProtocolViolation,
-                    QuicError.NewConnectionIdFrameWhenZeroLengthCIDUsed, FrameType.NewConnectionId);
+                    QuicTransportError.NewConnectionIdFrameWhenZeroLengthCIDUsed, FrameType.NewConnectionId);
             }
 
             // RFC: If an endpoint receives a NEW_CONNECTION_ID frame that repeats a
@@ -507,7 +507,7 @@ namespace System.Net.Quic.Implementations.Managed
                  existingCid != null && existingCid.StatelessResetToken != frame.StatelessResetToken)
             {
                 return CloseConnection(TransportErrorCode.ProtocolViolation,
-                    QuicError.InconsistentNewConnectionIdFrame, FrameType.NewConnectionId);
+                    QuicTransportError.InconsistentNewConnectionIdFrame, FrameType.NewConnectionId);
             }
 
             if (existingCid == null)
@@ -614,12 +614,12 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (!StreamHelpers.CanRead(IsServer, frame.StreamId))
                 return CloseConnection(TransportErrorCode.StreamStateError,
-                    QuicError.StreamNotWritable,
+                    QuicTransportError.StreamNotWritable,
                     frameType);
 
             if (!TryGetOrCreateStream(frame.StreamId, out var stream))
                 return CloseConnection(TransportErrorCode.StreamLimitError,
-                    QuicError.StreamsLimitViolated,
+                    QuicTransportError.StreamsLimitViolated,
                     frameType);
 
             Debug.Assert(stream!.CanRead);
@@ -633,14 +633,14 @@ namespace System.Net.Quic.Implementations.Managed
                 ReceivedData += writtenOffset - buffer.Size;
                 if (ReceivedData > _sendLimits.MaxData)
                 {
-                    return CloseConnection(TransportErrorCode.FlowControlError, QuicError.MaxDataViolated, frameType);
+                    return CloseConnection(TransportErrorCode.FlowControlError, QuicTransportError.MaxDataViolated, frameType);
                 }
             }
 
             // check stream-level flow control
             if (writtenOffset > buffer.MaxData)
             {
-                return CloseConnection(TransportErrorCode.FlowControlError, QuicError.StreamMaxDataViolated, frameType);
+                return CloseConnection(TransportErrorCode.FlowControlError, QuicTransportError.StreamMaxDataViolated, frameType);
             }
 
             if (frame.Fin)
@@ -649,14 +649,14 @@ namespace System.Net.Quic.Implementations.Managed
                 if (buffer.FinalSizeKnown && writtenOffset != buffer.Size ||
                     writtenOffset < buffer.Size)
                 {
-                    return CloseConnection(TransportErrorCode.FinalSizeError, QuicError.InconsistentFinalSize, frameType);
+                    return CloseConnection(TransportErrorCode.FinalSizeError, QuicTransportError.InconsistentFinalSize, frameType);
                 }
             }
 
             // close if writing past known stream end
             if (buffer.FinalSizeKnown && writtenOffset > buffer.Size)
             {
-                return CloseConnection(TransportErrorCode.FinalSizeError, QuicError.WritingPastFinalSize, frameType);
+                return CloseConnection(TransportErrorCode.FinalSizeError, QuicTransportError.WritingPastFinalSize, frameType);
             }
 
             // RFC: STREAM frames received after sending STOP_SENDING are still counted
@@ -697,7 +697,7 @@ namespace System.Net.Quic.Implementations.Managed
             int length = reader.BytesLeft;
             FrameType frameType = reader.ReadFrameType();
             _trace?.OnUnknownFrame((long)frameType, length);
-            return CloseConnection(TransportErrorCode.FrameEncodingError, QuicError.UnknownFrameType, frameType);
+            return CloseConnection(TransportErrorCode.FrameEncodingError, QuicTransportError.UnknownFrameType, frameType);
         }
 
         private void WriteFrames(QuicWriter writer, PacketType packetType, EncryptionLevel level, QuicSocketContext.SendContext context)
@@ -937,7 +937,7 @@ namespace System.Net.Quic.Implementations.Managed
                 return true;
             }
 
-            var frame = new MaxStreamDataFrame(stream.StreamId, buffer.MaxData);
+            var frame = new MaxStreamDataFrame(stream.Id, buffer.MaxData);
             if (writer.BytesAvailable < frame.GetSerializedLength())
             {
                 return false;
@@ -962,7 +962,7 @@ namespace System.Net.Quic.Implementations.Managed
                 return true;
             }
 
-            var frame = new StopSendingFrame(stream.StreamId, buffer.Error.Value);
+            var frame = new StopSendingFrame(stream.Id, buffer.Error.Value);
             if (writer.BytesAvailable < frame.GetSerializedLength())
             {
                 return false;
@@ -988,7 +988,7 @@ namespace System.Net.Quic.Implementations.Managed
                 return true;
             }
 
-            var frame = new ResetStreamFrame(stream.StreamId, buffer.Error.Value, buffer.UnsentOffset);
+            var frame = new ResetStreamFrame(stream.Id, buffer.Error.Value, buffer.UnsentOffset);
             if (writer.BytesAvailable < frame.GetSerializedLength())
             {
                 return false;
@@ -996,7 +996,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             ResetStreamFrame.Write(writer, frame);
             _trace?.OnResetStreamFrame(frame);
-            context.SentPacket.StreamsReset.Add(stream.StreamId);
+            context.SentPacket.StreamsReset.Add(stream.Id);
             buffer.OnResetSent();
 
             return true;
@@ -1042,7 +1042,7 @@ namespace System.Net.Quic.Implementations.Managed
                 (long offset, long count) = buffer.GetNextSendableRange();
 
                 // send only as much data as can fit into the packet
-                int overhead = StreamFrame.GetOverheadLength(stream.StreamId, offset, count);
+                int overhead = StreamFrame.GetOverheadLength(stream.Id, offset, count);
                 count = Math.Min(count, writer.BytesAvailable - overhead);
 
                 // respect connection-level control flow
@@ -1054,8 +1054,8 @@ namespace System.Net.Quic.Implementations.Managed
 
                 if (count > 0 || fin && !buffer.FinAcked)
                 {
-                    var payloadDestination = StreamFrame.ReservePayloadBuffer(writer, stream!.StreamId, offset, (int)count, fin);
-                    _trace?.OnStreamFrame(new StreamFrame(stream!.StreamId, offset, fin, payloadDestination));
+                    var payloadDestination = StreamFrame.ReservePayloadBuffer(writer, stream.Id, offset, (int)count, fin);
+                    _trace?.OnStreamFrame(new StreamFrame(stream.Id, offset, fin, payloadDestination));
 
                     // add the newly sent data to the flow control counter
                     SentData += Math.Max(0, offset + count - buffer.UnsentOffset);
@@ -1063,7 +1063,7 @@ namespace System.Net.Quic.Implementations.Managed
 
                     // record sent data
                     context.SentPacket.StreamFrames.Add(
-                        new SentPacket.StreamFrameHeader(stream!.StreamId, offset, (int)count, fin));
+                        new SentPacket.StreamFrameHeader(stream.Id, offset, (int)count, fin));
 
                     written = true;
                 }
