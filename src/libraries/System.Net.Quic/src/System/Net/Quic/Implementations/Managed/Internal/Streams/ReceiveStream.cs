@@ -483,8 +483,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         private void SetStreamAborted(long errorCode, bool byUs)
         {
             _deliverableChannel.Writer.TryComplete(byUs
-                ? new QuicOperationAbortedException()
-                : new QuicStreamAbortedException(errorCode));
+                ? new QuicException(QuicError.OperationAborted, null, "Stream aborted by us.")
+                : new QuicException(QuicError.StreamAborted, errorCode));
         }
     }
 }

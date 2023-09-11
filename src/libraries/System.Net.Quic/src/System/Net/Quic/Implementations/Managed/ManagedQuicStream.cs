@@ -417,10 +417,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         private void ThrowIfDisposed()
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(ManagedQuicStream));
-            }
+            ObjectDisposedException.ThrowIf(_disposed, typeof(ManagedQuicStream));
         }
 
         private void ThrowIfNotWritable()
