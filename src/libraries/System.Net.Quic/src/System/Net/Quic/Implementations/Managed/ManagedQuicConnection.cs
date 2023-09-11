@@ -23,7 +23,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal sealed partial class ManagedQuicConnection : QuicConnectionProvider
+    public sealed partial class ManagedQuicConnection : QuicConnectionProvider
     {
         // This limit should ensure that if we can fit at least an ack frame into the packet,
         private const int RequiredAllowanceForSending = 2 * ConnectionId.MaximumLength + 40;

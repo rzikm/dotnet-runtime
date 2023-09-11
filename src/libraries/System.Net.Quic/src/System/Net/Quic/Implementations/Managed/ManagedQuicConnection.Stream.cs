@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal partial class ManagedQuicConnection
+    public partial class ManagedQuicConnection
     {
         private struct ConnectionFlowControlLimits
         {

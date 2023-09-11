@@ -7,7 +7,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Streams;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal partial class ManagedQuicConnection
+    public partial class ManagedQuicConnection
     {
         /// <summary>
         ///     Marks the connection data sent in the packet as acknowledged.
