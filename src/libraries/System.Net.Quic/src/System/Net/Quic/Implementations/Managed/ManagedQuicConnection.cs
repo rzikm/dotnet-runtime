@@ -23,7 +23,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    public sealed partial class ManagedQuicConnection : QuicConnectionProvider
+    public sealed partial class ManagedQuicConnection : IAsyncDisposable
     {
         // This limit should ensure that if we can fit at least an ack frame into the packet,
         private const int RequiredAllowanceForSending = 2 * ConnectionId.MaximumLength + 40;
@@ -225,14 +225,14 @@ namespace System.Net.Quic.Implementations.Managed
         internal EndPoint UnsafeRemoteEndPoint => _remoteEndpoint;
 
         // client constructor
-        public ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)
+        internal ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)
         {
             IsServer = false;
             _remoteEndpoint = options.RemoteEndPoint!;
 
             _socketContext = new SingleConnectionSocketContext(options.LocalEndPoint, _remoteEndpoint, this)
                 .ConnectionContext;
-            _localTransportParameters = TransportParameters.FromClientConnectionOptions(options);
+            _localTransportParameters = TransportParameters.FromConnectionOptions(options);
             Tls = tlsFactory.CreateClient(this, options, _localTransportParameters);
 
             // init random connection ids for the client
@@ -252,13 +252,13 @@ namespace System.Net.Quic.Implementations.Managed
         }
 
         // server constructor
-        public ManagedQuicConnection(QuicListenerOptions options, QuicConnectionContext socketContext,
+        internal ManagedQuicConnection(QuicServerConnectionOptions options, QuicConnectionContext socketContext,
             EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
         {
             IsServer = true;
             _socketContext = socketContext;
             _remoteEndpoint = remoteEndpoint;
-            _localTransportParameters = TransportParameters.FromListenerOptions(options);
+            _localTransportParameters = TransportParameters.FromConnectionOptions(options);
 
             Tls = tlsFactory.CreateServer(this, options, _localTransportParameters);
             _trace = InitTrace(IsServer, odcid);
@@ -297,12 +297,12 @@ namespace System.Net.Quic.Implementations.Managed
         /// <summary>
         ///     Connection ID used by this endpoint to identify packets for this connection.
         /// </summary>
-        public ConnectionId? SourceConnectionId { get; private set; }
+        internal ConnectionId? SourceConnectionId { get; private set; }
 
         /// <summary>
         ///     Connection ID used by the peer to identify packets for this connection.
         /// </summary>
-        public ConnectionId? DestinationConnectionId { get; private set; }
+        internal ConnectionId? DestinationConnectionId { get; private set; }
 
         /// <summary>
         ///     Sets new socket context that will from now on service the connection.
@@ -607,7 +607,7 @@ namespace System.Net.Quic.Implementations.Managed
             if (!Connected)
             {
                 // abandon connection attempt
-                _connectTcs.TryCompleteException(new QuicConnectionAbortedException(errorCode));
+                _connectTcs.TryCompleteException(new QuicException(QuicError.ConnectionAborted, errorCode));
                 _closeTcs.TryComplete();
                 return default;
             }
@@ -626,16 +626,9 @@ namespace System.Net.Quic.Implementations.Managed
             return _closeTcs.GetTask();
         }
 
-        internal ValueTask DisposeAsync()
+        public ValueTask DisposeAsync()
         {
             return DisposeAsync((long)TransportErrorCode.NoError);
-        }
-
-        public override void Dispose()
-        {
-            // TODO-RZ: I don't like this, but there does not seem to be a better way, unless we just want to do
-            // fire-and-forget
-            DisposeAsync().AsTask().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         private void SetEncryptionSecrets(EncryptionLevel level, TlsCipherSuite algorithm,
@@ -704,14 +697,13 @@ namespace System.Net.Quic.Implementations.Managed
 
         #region Public API
 
-        internal override bool Connected => HandshakeConfirmed;
 
-        internal override IPEndPoint LocalEndPoint => _socketContext.LocalEndPoint;
+        public IPEndPoint LocalEndPoint => _socketContext.LocalEndPoint;
 
         // TODO-RZ: create a defensive copy of the endpoint
-        internal override EndPoint RemoteEndPoint => _remoteEndpoint;
+        public EndPoint RemoteEndPoint => _remoteEndpoint;
 
-        internal override ValueTask ConnectAsync(CancellationToken cancellationToken = default)
+        internal ValueTask ConnectAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfError();
@@ -724,39 +716,15 @@ namespace System.Net.Quic.Implementations.Managed
             return _connectTcs.GetTask();
         }
 
-        internal async override ValueTask<QuicStreamProvider> OpenUnidirectionalStreamAsync(CancellationToken cancellationToken = default)
+        public async ValueTask<ManagedQuicStream> OpenOutboundStreamAsync(QuicStreamType type, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfError();
 
-            return await OpenStream(true, cancellationToken).ConfigureAwait(false);
+            return await OpenStream(type == QuicStreamType.Unidirectional, cancellationToken).ConfigureAwait(false);
         }
 
-        internal async override ValueTask<QuicStreamProvider> OpenBidirectionalStreamAsync(CancellationToken cancellationToken = default)
-        {
-            ThrowIfDisposed();
-            ThrowIfError();
-
-            return await OpenStream(false, cancellationToken).ConfigureAwait(false);
-        }
-
-        internal override int GetRemoteAvailableUnidirectionalStreamCount()
-        {
-            ThrowIfDisposed();
-            ThrowIfError();
-
-            return checked((int)_sendLimits.MaxStreamsUni);
-        }
-
-        internal override int GetRemoteAvailableBidirectionalStreamCount()
-        {
-            ThrowIfDisposed();
-            ThrowIfError();
-
-            return checked((int)_sendLimits.MaxStreamsBidi);
-        }
-
-        internal override async ValueTask<QuicStreamProvider> AcceptStreamAsync(CancellationToken cancellationToken = default)
+        public async ValueTask<ManagedQuicStream> AcceptInboundStreamAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfError();
@@ -771,7 +739,7 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        internal override SslApplicationProtocol NegotiatedApplicationProtocol
+        public SslApplicationProtocol NegotiatedApplicationProtocol
         {
             get
             {
@@ -780,9 +748,9 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        internal override X509Certificate? RemoteCertificate => throw new NotImplementedException();
+        public X509Certificate? RemoteCertificate => throw new NotImplementedException();
 
-        internal override ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
+        public ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
         {
             return DisposeAsync(errorCode);
         }
@@ -928,12 +896,9 @@ namespace System.Net.Quic.Implementations.Managed
                 : new QuicOperationAbortedException(); // initiated by us
         }
 
-        private static QuicConnectionAbortedException MakeConnectionAbortedException(QuicError error)
+        private static QuicException MakeConnectionAbortedException(QuicError error)
         {
-            return error.ReasonPhrase != null
-                // TODO-RZ: We should probably format reason phrase into the exception message
-                ? new QuicConnectionAbortedException(error.ReasonPhrase, (long)error.ErrorCode)
-                : new QuicConnectionAbortedException((long)error.ErrorCode);
+            return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, error.ReasonPhrase);
         }
 
         internal void OnSocketContextException(Exception e)
