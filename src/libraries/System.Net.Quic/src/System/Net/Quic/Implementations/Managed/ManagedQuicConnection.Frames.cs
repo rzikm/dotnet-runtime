@@ -12,7 +12,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Streams;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal partial class ManagedQuicConnection
+    public partial class ManagedQuicConnection
     {
         /// <summary>
         ///     Returns true if the frame type requires receiver to sent acknowledgement before the maximum ack delay.
