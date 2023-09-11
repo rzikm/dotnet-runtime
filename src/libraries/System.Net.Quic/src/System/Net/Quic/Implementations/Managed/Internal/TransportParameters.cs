@@ -47,12 +47,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             };
         }
 
-        internal static TransportParameters FromClientConnectionOptions(QuicClientConnectionOptions options)
-        {
-            return Create(options.MaxBidirectionalStreams, options.MaxUnidirectionalStreams, options.IdleTimeout);
-        }
-
-        internal static TransportParameters FromListenerOptions(QuicListenerOptions options)
+        internal static TransportParameters FromConnectionOptions(QuicConnectionOptions options)
         {
             return Create(options.MaxBidirectionalStreams, options.MaxUnidirectionalStreams, options.IdleTimeout);
         }

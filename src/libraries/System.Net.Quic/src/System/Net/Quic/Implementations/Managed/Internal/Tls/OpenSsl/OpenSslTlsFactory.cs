@@ -10,7 +10,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
         internal override ITls CreateClient(ManagedQuicConnection connection, QuicClientConnectionOptions options,
             TransportParameters localTransportParams) => new OpenSslTls(connection, options, localTransportParams);
 
-        internal override ITls CreateServer(ManagedQuicConnection connection, QuicListenerOptions options,
+        internal override ITls CreateServer(ManagedQuicConnection connection, QuicServerConnectionOptions options,
             TransportParameters localTransportParams) => new OpenSslTls(connection, options, localTransportParams);
     }
 }
