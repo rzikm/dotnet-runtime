@@ -9,7 +9,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Sockets;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal sealed partial class ManagedQuicConnection
+    public sealed partial class ManagedQuicConnection
     {
         /// <summary>
         ///     Current value of the key phase bit for key update detection.

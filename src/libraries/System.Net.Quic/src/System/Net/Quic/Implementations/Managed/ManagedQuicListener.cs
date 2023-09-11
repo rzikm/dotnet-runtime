@@ -11,14 +11,20 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal sealed class ManagedQuicListener : QuicListenerProvider
+    public sealed class ManagedQuicListener : IAsyncDisposable
     {
+        public static bool IsSupported => true;
+        public static ValueTask<ManagedQuicListener> ListenAsync(QuicListenerOptions options, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(new ManagedQuicListener(options));
+        }
+
         private bool _disposed;
 
         private readonly ChannelReader<ManagedQuicConnection> _acceptQueue;
         private readonly QuicServerSocketContext _socketContext;
 
-        public ManagedQuicListener(QuicListenerOptions options, TlsFactory tlsFactory)
+        private ManagedQuicListener(QuicListenerOptions options)
         {
             var listenEndPoint = options.ListenEndPoint ?? new IPEndPoint(IPAddress.Any, 0);
 
@@ -30,47 +36,26 @@ namespace System.Net.Quic.Implementations.Managed
             });
 
             _acceptQueue = channel.Reader;
-            _socketContext = new QuicServerSocketContext(listenEndPoint, options, channel.Writer, tlsFactory);
-            Start();
-        }
-
-        internal override IPEndPoint ListenEndPoint
-        {
-            get
-            {
-                ThrowIfDisposed();
-                return _socketContext.LocalEndPoint;
-            }
-        }
-
-        internal override async ValueTask<QuicConnectionProvider> AcceptConnectionAsync(
-            CancellationToken cancellationToken = default)
-        {
-            ThrowIfDisposed();
-            // TODO-RZ: make this non-async when the cast is no longer needed
-            return await _acceptQueue.ReadAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        private void Start()
-        {
-            ThrowIfDisposed();
-
+            _socketContext = new QuicServerSocketContext(listenEndPoint, options, channel.Writer, OpenSslTlsFactory.Instance);
             _socketContext.Start();
         }
 
-        public override void Dispose()
+        public IPEndPoint ListenEndPoint => _socketContext.LocalEndPoint;
+
+        public ValueTask<ManagedQuicConnection> AcceptConnectionAsync(CancellationToken cancellationToken = default)
         {
-            if (_disposed) return;
-            _socketContext.StopOrOrphan();
-            _disposed = true;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            return _acceptQueue.ReadAsync(cancellationToken);
         }
 
-        private void ThrowIfDisposed()
+        public ValueTask DisposeAsync()
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(ManagedQuicListener));
-            }
+            if (_disposed) return;
+            
+            _disposed = true;
+
+            _socketContext.StopOrOrphan();
         }
     }
 }
