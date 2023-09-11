@@ -179,12 +179,12 @@ namespace System.Net.Quic.Implementations.Managed
         /// <summary>
         ///     Error received via CONNECTION_CLOSE frame to be reported to the user.
         /// </summary>
-        private QuicError? _inboundError;
+        private QuicTransportError? _inboundError;
 
         /// <summary>
         ///     Error to send in next packet in a CONNECTION_CLOSE frame.
         /// </summary>
-        private QuicError? _outboundError;
+        private QuicTransportError? _outboundError;
 
         /// <summary>
         ///     Version of the QUIC protocol used for this connection.
@@ -593,7 +593,7 @@ namespace System.Net.Quic.Implementations.Managed
         private ProcessPacketResult CloseConnection(TransportErrorCode errorCode, string? reason = null,
             FrameType frameType = FrameType.Padding)
         {
-            _outboundError ??= new QuicError(errorCode, reason, frameType);
+            _outboundError ??= new QuicTransportError(errorCode, reason, frameType);
             return ProcessPacketResult.Error;
         }
 
@@ -618,7 +618,7 @@ namespace System.Net.Quic.Implementations.Managed
                 stream.OnConnectionClosed(MakeOperationAbortedException());
             }
 
-            _outboundError = new QuicError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
+            _outboundError = new QuicTransportError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
             _disposed = true;
             Tls.Dispose();
             _socketContext.WakeUp();
@@ -818,7 +818,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         /// <param name="now">Timestamp of the current moment.</param>
         /// <param name="error">Error which led to connection closing.</param>
-        private void StartClosing(long now, QuicError error)
+        private void StartClosing(long now, QuicTransportError error)
         {
             Debug.Assert(_closingPeriodEndTimestamp == null);
             Debug.Assert(error != null);
@@ -896,7 +896,7 @@ namespace System.Net.Quic.Implementations.Managed
                 : new QuicOperationAbortedException(); // initiated by us
         }
 
-        private static QuicException MakeConnectionAbortedException(QuicError error)
+        private static QuicException MakeConnectionAbortedException(QuicTransportError error)
         {
             return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, error.ReasonPhrase);
         }

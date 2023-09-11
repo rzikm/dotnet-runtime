@@ -49,7 +49,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         internal static TransportParameters FromConnectionOptions(QuicConnectionOptions options)
         {
-            return Create(options.MaxBidirectionalStreams, options.MaxUnidirectionalStreams, options.IdleTimeout);
+            return Create(options.MaxInboundBidirectionalStreams, options.MaxInboundUnidirectionalStreams, options.IdleTimeout);
         }
 
         /// <summary>
