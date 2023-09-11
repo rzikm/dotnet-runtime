@@ -96,7 +96,7 @@ namespace System.Net.Quic.Implementations.Managed
                                 if (reader.Buffer.Length < QuicConstants.MinimumClientInitialDatagramSize)
                                 {
                                     return CloseConnection(TransportErrorCode.ProtocolViolation,
-                                        QuicError.InitialPacketTooShort);
+                                        QuicTransportError.InitialPacketTooShort);
                                 }
                             }
 
@@ -105,7 +105,7 @@ namespace System.Net.Quic.Implementations.Managed
                             {
                                 return CloseConnection(
                                     TransportErrorCode.ProtocolViolation,
-                                    QuicError.UnexpectedToken);
+                                    QuicTransportError.UnexpectedToken);
                             }
 
                             // after client receives the first packet (which is either initial or retry), it must
@@ -240,7 +240,7 @@ namespace System.Net.Quic.Implementations.Managed
                 if (header.ReservedBits != 0)
                 {
                     return CloseConnection(TransportErrorCode.ProtocolViolation,
-                        QuicError.InvalidReservedBits);
+                        QuicTransportError.InvalidReservedBits);
                 }
 
                 result = ReceiveCore(reader, pnSpace, pnOffset, header.PacketNumberLength, packetType, recvSeal,
@@ -333,7 +333,7 @@ namespace System.Net.Quic.Implementations.Managed
             if (header.ReservedBits != 0)
             {
                 return CloseConnection(TransportErrorCode.ProtocolViolation,
-                    QuicError.InvalidReservedBits);
+                    QuicTransportError.InvalidReservedBits);
             }
 
             return ReceiveCore(reader, pnSpace, pnOffset, header.PacketNumberLength, packetType, seal,

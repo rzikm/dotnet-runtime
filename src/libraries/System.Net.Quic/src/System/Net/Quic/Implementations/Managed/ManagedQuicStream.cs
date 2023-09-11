@@ -6,6 +6,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Streams;
 using System.Threading;
@@ -13,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    public sealed class ManagedQuicStream
+    public sealed class ManagedQuicStream : Stream
     {
         /// <summary>
         ///     Node to the linked list of all flushable streams. Should be accessed only by the <see cref="StreamCollection"/> class.
@@ -62,7 +63,7 @@ namespace System.Net.Quic.Implementations.Managed
             Debug.Assert(receiveStream != null || sendStream != null);
             Debug.Assert(StreamHelpers.IsBidirectional(streamId) == (receiveStream != null && sendStream != null));
 
-            StreamId = streamId;
+            Id = streamId;
             ReceiveStream = receiveStream;
             SendStream = sendStream;
             _connection = connection;
@@ -71,33 +72,60 @@ namespace System.Net.Quic.Implementations.Managed
             _updateQueueListNode = new LinkedListNode<ManagedQuicStream>(this);
         }
 
-        private async ValueTask WriteAsyncInternal(ReadOnlyMemory<byte> buffer, bool endStream,
-            CancellationToken cancellationToken)
-        {
-            await SendStream!.EnqueueAsync(buffer, cancellationToken).ConfigureAwait(false);
+        #region Public API
+        public override bool CanRead => ReceiveStream != null;
+        public override bool CanWrite => SendStream != null;
+        public override bool CanSeek => false;
+        public override bool CanTimeout => false;
 
-            if (endStream)
+        public long Id { get; }
+
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public Task ReadClosed => throw new NotImplementedException();
+        public override int ReadTimeout { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public Task WriteClosed => throw new NotImplementedException();
+        public override int WriteTimeout { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public void Abort(QuicAbortDirection abortDirection, long errorCode)
+        {
+            ThrowIfDisposed();
+
+            if ((abortDirection & QuicAbortDirection.Read) != 0)
             {
-                SendStream.MarkEndOfData();
-                await SendStream.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
+                AbortRead(errorCode);
             }
 
-            if (SendStream.WrittenBytes - buffer.Length < SendStream.MaxData)
+            if ((abortDirection & QuicAbortDirection.Write) != 0)
             {
+                AbortWrite(errorCode);
+            }
+        }
+
+        public void CompleteWrites()
+        {
+            ThrowIfDisposed();
+            ThrowIfConnectionError();
+
+            if (CanWrite)
+            {
+                SendStream!.MarkEndOfData();
+                SendStream!.FlushChunk();
                 _connection.OnStreamDataWritten(this);
             }
         }
 
-        internal void NotifyShutdownWriteCompleted()
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override int Read(byte[] buffer, int offset, int count)
         {
-            _shutdownCompleted.TryComplete();
+            ValidateBufferArguments(buffer, offset, count);
+            return Read(buffer.AsSpan(offset, count));
         }
 
-        #region Public API
-        internal override long StreamId { get; }
-        internal override bool CanRead => ReceiveStream != null;
-
-        internal override int Read(Span<byte> buffer)
+        public override int Read(Span<byte> buffer)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -112,7 +140,7 @@ namespace System.Net.Quic.Implementations.Managed
             return result;
         }
 
-        internal override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -127,7 +155,7 @@ namespace System.Net.Quic.Implementations.Managed
             return result;
         }
 
-        internal override void AbortRead(long errorCode)
+        internal void AbortRead(long errorCode)
         {
             ThrowIfDisposed();
             ThrowIfNotReadable();
@@ -138,7 +166,7 @@ namespace System.Net.Quic.Implementations.Managed
             _connection.OnStreamStateUpdated(this);
         }
 
-        internal override void AbortWrite(long errorCode)
+        internal void AbortWrite(long errorCode)
         {
             ThrowIfDisposed();
             ThrowIfNotWritable();
@@ -149,18 +177,15 @@ namespace System.Net.Quic.Implementations.Managed
             _connection.OnStreamStateUpdated(this);
         }
 
-        internal override bool CanWrite => SendStream != null;
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            ValidateBufferArguments(buffer, offset, count);
+            Write(buffer.AsSpan(offset, count));
+        }
 
-        internal override bool CanTimeout => throw new NotImplementedException();
+        public override void Write(ReadOnlySpan<byte> buffer) => Write(buffer, false);
 
-        internal override bool ReadsCompleted => throw new NotImplementedException();
-
-        internal override int ReadTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-        internal override int WriteTimeout { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-
-        internal override void Write(ReadOnlySpan<byte> buffer) => Write(buffer, false);
-
-        internal void Write(ReadOnlySpan<byte> buffer, bool endStream)
+        public void Write(ReadOnlySpan<byte> buffer, bool endStream)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -179,12 +204,12 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        internal override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             return WriteAsync(buffer, false, cancellationToken);
         }
 
-        internal override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool endStream, CancellationToken cancellationToken = default)
+        public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool endStream, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -195,7 +220,7 @@ namespace System.Net.Quic.Implementations.Managed
             await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        internal override async ValueTask WriteAsync(ReadOnlySequence<byte> buffers, CancellationToken cancellationToken = default)
+        public async ValueTask WriteAsync(ReadOnlySequence<byte> buffers, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -209,7 +234,7 @@ namespace System.Net.Quic.Implementations.Managed
             await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        internal override async ValueTask WriteAsync(ReadOnlySequence<byte> buffers, bool endStream, CancellationToken cancellationToken = default)
+        public async ValueTask WriteAsync(ReadOnlySequence<byte> buffers, bool endStream, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -223,12 +248,12 @@ namespace System.Net.Quic.Implementations.Managed
             await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        internal override ValueTask WriteAsync(ReadOnlyMemory<ReadOnlyMemory<byte>> buffers, CancellationToken cancellationToken = default)
+        public ValueTask WriteAsync(ReadOnlyMemory<ReadOnlyMemory<byte>> buffers, CancellationToken cancellationToken = default)
         {
             return WriteAsync(buffers, false, cancellationToken);
         }
 
-        internal override async ValueTask WriteAsync(ReadOnlyMemory<ReadOnlyMemory<byte>> buffers, bool endStream, CancellationToken cancellationToken = default)
+        public async ValueTask WriteAsync(ReadOnlyMemory<ReadOnlyMemory<byte>> buffers, bool endStream, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -242,7 +267,7 @@ namespace System.Net.Quic.Implementations.Managed
             await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        internal override async ValueTask ShutdownCompleted(CancellationToken cancellationToken = default)
+        public async ValueTask ShutdownCompleted(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -260,8 +285,7 @@ namespace System.Net.Quic.Implementations.Managed
             await _shutdownCompleted.GetTask().ConfigureAwait(false);
         }
 
-        // TODO:
-        internal override ValueTask WaitForWriteCompletionAsync(CancellationToken cancellationToken = default)
+        internal ValueTask WaitForWriteCompletionAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -280,40 +304,7 @@ namespace System.Net.Quic.Implementations.Managed
             await _started.GetTask().ConfigureAwait(false);
         }
 
-        internal void NotifyStarted()
-        {
-            _started.TryComplete();
-        }
-
-        internal void OnFatalException(Exception exception)
-        {
-            ReceiveStream?.OnFatalException(exception);
-            SendStream?.OnFatalException(exception);
-        }
-
-        internal void OnConnectionClosed(QuicException exception)
-        {
-            // closing connection (CONNECTION_CLOSE frame) causes all streams to become closed
-            NotifyShutdownWriteCompleted();
-
-            _started.TryCompleteException(exception);
-            OnFatalException(exception);
-        }
-
-        internal override void Shutdown()
-        {
-            ThrowIfDisposed();
-            ThrowIfConnectionError();
-
-            if (CanWrite)
-            {
-                SendStream!.MarkEndOfData();
-                SendStream!.FlushChunk();
-                _connection.OnStreamDataWritten(this);
-            }
-        }
-
-        internal override void Flush()
+        public override void Flush()
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -323,7 +314,7 @@ namespace System.Net.Quic.Implementations.Managed
             _connection.OnStreamDataWritten(this);
         }
 
-        internal override async Task FlushAsync(CancellationToken cancellationToken)
+        public override async Task FlushAsync(CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -333,9 +324,9 @@ namespace System.Net.Quic.Implementations.Managed
             _connection.OnStreamDataWritten(this);
         }
 
-        public override void Dispose()
+        protected override void Dispose(bool disposing)
         {
-            if (_disposed)
+            if (_disposed || !disposing)
             {
                 return;
             }
@@ -382,12 +373,51 @@ namespace System.Net.Quic.Implementations.Managed
 
         #endregion
 
+        private async ValueTask WriteAsyncInternal(ReadOnlyMemory<byte> buffer, bool endStream,
+            CancellationToken cancellationToken)
+        {
+            await SendStream!.EnqueueAsync(buffer, cancellationToken).ConfigureAwait(false);
+
+            if (endStream)
+            {
+                SendStream.MarkEndOfData();
+                await SendStream.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            if (SendStream.WrittenBytes - buffer.Length < SendStream.MaxData)
+            {
+                _connection.OnStreamDataWritten(this);
+            }
+        }
+
+        internal void NotifyShutdownWriteCompleted()
+        {
+            _shutdownCompleted.TryComplete();
+        }
+
+        internal void NotifyStarted()
+        {
+            _started.TryComplete();
+        }
+
+        internal void OnFatalException(Exception exception)
+        {
+            ReceiveStream?.OnFatalException(exception);
+            SendStream?.OnFatalException(exception);
+        }
+
+        internal void OnConnectionClosed(QuicException exception)
+        {
+            // closing connection (CONNECTION_CLOSE frame) causes all streams to become closed
+            NotifyShutdownWriteCompleted();
+
+            _started.TryCompleteException(exception);
+            OnFatalException(exception);
+        }
+
         private void ThrowIfDisposed()
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(ManagedQuicStream));
-            }
+            ObjectDisposedException.ThrowIf(_disposed, typeof(ManagedQuicStream));
         }
 
         private void ThrowIfNotWritable()
@@ -411,7 +441,7 @@ namespace System.Net.Quic.Implementations.Managed
             // ReceiveStream not null is implied by CanRead
             if (ReceiveStream!.Error != null)
             {
-                throw new QuicStreamAbortedException("Reading was aborted on the stream", ReceiveStream.Error.Value);
+                throw new QuicException(QuicError.StreamAborted, ReceiveStream.Error.Value, "Reading was aborted on the stream");
             }
         }
 
