@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    internal sealed class ManagedQuicStream : QuicStreamProvider
+    public sealed class ManagedQuicStream
     {
         /// <summary>
         ///     Node to the linked list of all flushable streams. Should be accessed only by the <see cref="StreamCollection"/> class.

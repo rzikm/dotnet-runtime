@@ -102,7 +102,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
                 options.ClientAuthenticationOptions?.LocalCertificateSelectionCallback;
         }
 
-        internal OpenSslTls(ManagedQuicConnection connection, QuicListenerOptions options, TransportParameters localTransportParameters)
+        internal OpenSslTls(ManagedQuicConnection connection, QuicServerConnectionOptions options, TransportParameters localTransportParameters)
             : this(connection,
                 true,
                 localTransportParameters,

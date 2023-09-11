@@ -8,7 +8,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
         internal abstract ITls CreateClient(ManagedQuicConnection connection, QuicClientConnectionOptions options,
             TransportParameters localTransportParams);
 
-        internal abstract ITls CreateServer(ManagedQuicConnection connection, QuicListenerOptions options,
+        internal abstract ITls CreateServer(ManagedQuicConnection connection, QuicServerConnectionOptions options,
             TransportParameters localTransportParams);
     }
 }
