@@ -455,7 +455,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
         public void OnFatalException(Exception e)
         {
-            if (e is QuicConnectionAbortedException abortedException && abortedException.ErrorCode == 0)
+            if (e is QuicException qe && qe.QuicError == QuicError.ConnectionAborted && abortedException.ErrorCode == 0)
             {
                 _deliverableChannel.Writer.TryComplete(null);
             }

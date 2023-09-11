@@ -50,7 +50,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
             WriteLevel = EncryptionLevel.Initial;
         }
 
-        public MockTls(ManagedQuicConnection connection, QuicListenerOptions options, TransportParameters localTransportParams)
+        public MockTls(ManagedQuicConnection connection, QuicServerConnectionOptions options, TransportParameters localTransportParams)
             : this(connection, localTransportParams, options.ServerAuthenticationOptions?.ApplicationProtocols)
         {
             WriteLevel = EncryptionLevel.Initial;

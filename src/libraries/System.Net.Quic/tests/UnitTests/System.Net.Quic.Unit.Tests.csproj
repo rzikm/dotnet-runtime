@@ -16,7 +16,6 @@
     <Compile Include="..\..\src\Resources\*.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicClientConnectionOptions.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicConnection.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\QuicConnectionAbortedException.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicException.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicListener.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicListenerOptions.cs" />
