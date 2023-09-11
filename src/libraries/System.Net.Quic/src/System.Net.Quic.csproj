@@ -22,7 +22,6 @@
   <!-- Source files -->
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' != ''">
     <Compile Include="System\Net\Quic\**\*.cs" Exclude="System\Net\Quic\*.Unsupported.cs"/>
-    <Compile Remove="System\Net\Quic\Implementations\Managed\**\*.cs" />
     <!-- System.Net common -->
     <Compile Include="$(CommonPath)DisableRuntimeMarshalling.cs" Link="Common\DisableRuntimeMarshalling.cs" />
     <Compile Include="$(CommonPath)System\Net\ArrayBuffer.cs" Link="Common\System\Net\ArrayBuffer.cs" />
@@ -41,7 +40,6 @@
   <!-- Unsupported platforms -->
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' == ''">
     <Compile Include="System\Net\Quic\*.Unsupported.cs" />
-    <Compile Remove="System\Net\Quic\Implementations\Managed\**\*.cs" />
     <!-- [ActiveIssue("https://github.com/dotnet/runtime/issues/71559")]: PNSE generator cannot handle required keyword, so excluding affected classes in ExcludeApiList.PNSE.txt and including real code for now. -->
     <Compile Include="System\Net\Quic\QuicListenerOptions.cs" />
     <Compile Include="System\Net\Quic\QuicConnectionOptions.cs" />
@@ -108,6 +106,7 @@
     <Reference Include="Microsoft.Win32.Primitives" />
     <Reference Include="System.Collections" />
     <Reference Include="System.Collections.Concurrent" />
+    <Reference Include="System.Collections.Immutable" />
     <Reference Include="System.Collections.NonGeneric" />
     <Reference Include="System.Console" Condition="'$(Configuration)' == 'Debug'" />
     <Reference Include="System.Diagnostics.Tracing" />
@@ -119,6 +118,7 @@
     <Reference Include="System.Runtime" />
     <Reference Include="System.Runtime.InteropServices" />
     <Reference Include="System.Security.Cryptography" />
+    <Reference Include="System.Text.Json" />
     <Reference Include="System.Threading" />
     <Reference Include="System.Threading.Channels" />
   </ItemGroup>
