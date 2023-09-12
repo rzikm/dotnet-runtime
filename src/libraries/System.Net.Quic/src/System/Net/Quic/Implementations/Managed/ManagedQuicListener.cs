@@ -5,7 +5,6 @@ using System.IO;
 using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Sockets;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
-using System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
