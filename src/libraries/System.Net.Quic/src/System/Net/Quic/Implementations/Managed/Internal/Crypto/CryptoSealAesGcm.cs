@@ -22,7 +22,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Crypto
             Debug.Assert(headerKey.Length == 16);
 
             CipherSuite = cipherSuite;
-            _aesGcm = new AesGcm(key);
+            _aesGcm = new AesGcm(key, IntegrityTagLength);
         }
 
         internal override TlsCipherSuite CipherSuite { get; }

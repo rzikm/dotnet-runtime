@@ -37,7 +37,7 @@ namespace System.Net.Quic.Implementations.Managed
             });
 
             _acceptQueue = channel.Reader;
-            _socketContext = new QuicServerSocketContext(listenEndPoint, options, channel.Writer, OpenSslTlsFactory.Instance);
+            _socketContext = new QuicServerSocketContext(listenEndPoint, options, channel.Writer, TlsFactory.Default);
             _socketContext.Start();
         }
 
@@ -56,6 +56,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             _disposed = true;
 
+            // TODO: wait until close?
             _socketContext.StopOrOrphan();
 
             return ValueTask.CompletedTask;

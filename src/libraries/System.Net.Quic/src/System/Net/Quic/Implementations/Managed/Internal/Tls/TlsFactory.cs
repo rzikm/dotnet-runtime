@@ -10,5 +10,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
 
         internal abstract ITls CreateServer(ManagedQuicConnection connection, QuicServerConnectionOptions options,
             TransportParameters localTransportParams);
+
+        internal static TlsFactory Default => MockTlsFactory.Instance;
     }
 }
