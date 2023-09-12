@@ -13,6 +13,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Tls;
 using System.Net.Quic.Tests.Harness;
 using System.Net.Security;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -52,6 +53,7 @@ namespace System.Net.Quic.Tests
         private static readonly IPEndPoint _dummyListenEndpoint = new IPEndPoint(IPAddress.Any, 0);
 
         internal readonly QuicClientConnectionOptions ClientOptions;
+        internal readonly QuicServerConnectionOptions ServerOptions;
         internal readonly QuicListenerOptions ListenerOptions;
 
         internal readonly ManagedQuicConnection Client;
@@ -75,11 +77,8 @@ namespace System.Net.Quic.Tests
 
         protected ManualTransmissionQuicTestBase(ITestOutputHelper output)
         {
-            ListenerOptions = new QuicListenerOptions
+            ServerOptions = new QuicServerConnectionOptions
             {
-                // TODO:
-                //CertificateFilePath = CertificateFilePath,
-                //PrivateKeyFilePath = PrivateKeyFilePath,
                 ServerAuthenticationOptions = new SslServerAuthenticationOptions()
                 {
                     ApplicationProtocols = new List<SslApplicationProtocol>()
@@ -87,9 +86,17 @@ namespace System.Net.Quic.Tests
                         new SslApplicationProtocol("quictest")
                     }
                 },
+            };
+            ListenerOptions = new QuicListenerOptions
+            {
+                ApplicationProtocols = new List<SslApplicationProtocol>()
+                {
+                    new SslApplicationProtocol("quictest")
+                },
+                ConnectionOptionsCallback = delegate { return ValueTask.FromResult(ServerOptions); },
                 ListenEndPoint = new IPEndPoint(IPAddress.Loopback, 0)
             };
-            Server = CreateServer(ListenerOptions);
+            Server = CreateServer(ServerOptions, ListenerOptions);
 
             ClientOptions = new QuicClientConnectionOptions()
             {
@@ -124,10 +131,10 @@ namespace System.Net.Quic.Tests
             return new ManagedQuicConnection(options, MockTlsFactory.Instance);
         }
 
-        private static ManagedQuicConnection CreateServer(QuicListenerOptions options)
+        private static ManagedQuicConnection CreateServer(QuicServerConnectionOptions options, QuicListenerOptions listenerOptions)
         {
             var ctx = new QuicServerSocketContext(new IPEndPoint(IPAddress.Any, 0),
-                options, Channel.CreateUnbounded<ManagedQuicConnection>().Writer, MockTlsFactory.Instance);
+                listenerOptions, Channel.CreateUnbounded<ManagedQuicConnection>().Writer, MockTlsFactory.Instance);
             Span<byte> odcid = stackalloc byte[20];
             return new ManagedQuicConnection(options, new QuicConnectionContext(ctx, _dummyListenEndpoint, odcid, MockTlsFactory.Instance), _dummyListenEndpoint, odcid, MockTlsFactory.Instance);
         }
@@ -465,5 +472,11 @@ namespace System.Net.Quic.Tests
         {
             LogFlightPackets(new []{packet}, sender, lost);
         }
+
+        internal QuicException AssertThrowsQuicException(QuicError expectedError, Action action) =>
+            AssertHelpers.ThrowsQuicException(expectedError, action);
+
+        internal Task<QuicException> AssertThrowsQuicExceptionAsync(QuicError expectedError, Func<Task> action) =>
+            AssertHelpers.ThrowsQuicExceptionAsync(expectedError, action);
     }
 }

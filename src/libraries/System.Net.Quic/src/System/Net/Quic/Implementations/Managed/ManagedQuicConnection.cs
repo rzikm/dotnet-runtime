@@ -77,9 +77,9 @@ namespace System.Net.Quic.Implementations.Managed
         ///     If true, the connection is in closing or draining state and will be considered close at
         ///     <see cref="_closingPeriodEndTimestamp"/> at the latest.
         /// </summary>
-        private bool IsClosing => _closingPeriodEndTimestamp != null;
+        internal bool IsClosing => _closingPeriodEndTimestamp != null;
 
-        private bool Connected => HandshakeConfirmed;
+        internal bool Connected => HandshakeConfirmed;
 
         /// <summary>
         ///     Timestamp when the connection close will be initiated due to lack of packets from peer.
