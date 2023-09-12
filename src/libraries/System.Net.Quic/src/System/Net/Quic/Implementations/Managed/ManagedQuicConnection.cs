@@ -14,12 +14,15 @@ using System.Net.Quic.Implementations.Managed.Internal.Sockets;
 using System.Net.Quic.Implementations.Managed.Internal.Streams;
 using System.Net.Quic.Implementations.Managed.Internal.Tracing;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
+using System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl;
 using System.Net.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Channels;
 using System.Diagnostics.CodeAnalysis;
+
+#pragma warning disable IDE0060
 
 namespace System.Net.Quic.Implementations.Managed
 {
@@ -68,6 +71,8 @@ namespace System.Net.Quic.Implementations.Managed
         ///     <see cref="_closingPeriodEndTimestamp"/> at the latest.
         /// </summary>
         private bool IsClosing => _closingPeriodEndTimestamp != null;
+
+        private bool Connected => HandshakeConfirmed;
 
         /// <summary>
         ///     Timestamp when the connection close will be initiated due to lack of packets from peer.
@@ -607,7 +612,7 @@ namespace System.Net.Quic.Implementations.Managed
             if (!Connected)
             {
                 // abandon connection attempt
-                _connectTcs.TryCompleteException(new QuicException(QuicError.ConnectionAborted, errorCode));
+                _connectTcs.TryCompleteException(new QuicException(QuicError.ConnectionAborted, errorCode, "Abandon connection attempt"));
                 _closeTcs.TryComplete();
                 return default;
             }
@@ -775,7 +780,7 @@ namespace System.Net.Quic.Implementations.Managed
                 if (!_outboundError.IsQuicError)
                 {
                     // connection close initiated by application
-                    throw new QuicOperationAbortedException();
+                    throw new QuicException(QuicError.ConnectionAborted, (long)_outboundError.ErrorCode, "Connection close initiated by application");
                 }
                 else if (_outboundError.ErrorCode != TransportErrorCode.NoError)
                 {
@@ -893,12 +898,12 @@ namespace System.Net.Quic.Implementations.Managed
         {
             return _inboundError != null
                 ? MakeConnectionAbortedException(_inboundError) // initiated by peer
-                : new QuicOperationAbortedException(); // initiated by us
+                : new QuicException(QuicError.OperationAborted, null, "Initiated by us");
         }
 
         private static QuicException MakeConnectionAbortedException(QuicTransportError error)
         {
-            return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, error.ReasonPhrase);
+            return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, error.ReasonPhrase ?? "");
         }
 
         internal void OnSocketContextException(Exception e)
@@ -924,3 +929,5 @@ namespace System.Net.Quic.Implementations.Managed
         }
     }
 }
+
+#pragma warning restore IDE0060
