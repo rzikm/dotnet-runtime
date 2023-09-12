@@ -38,7 +38,7 @@ namespace System.Net.Quic.Tests.Frames
 
             Send1Rtt(Server, Client)
                 .ShouldHaveConnectionClose(TransportErrorCode.ProtocolViolation,
-                    QuicError.InvalidAckRange,
+                    QuicTransportError.InvalidAckRange,
                     FrameType.Ack);
         }
 
@@ -54,7 +54,7 @@ namespace System.Net.Quic.Tests.Frames
 
             Send1Rtt(Server, Client)
                 .ShouldHaveConnectionClose(TransportErrorCode.ProtocolViolation,
-                    QuicError.InvalidAckRange,
+                    QuicTransportError.InvalidAckRange,
                     FrameType.Ack);
         }
 
@@ -91,7 +91,7 @@ namespace System.Net.Quic.Tests.Frames
 
             // we enforce sending packets by writing one byte, coincidentally containing the value of expected packet
             // number for better testing
-            var clientStream = await Client.OpenUnidirectionalStreamAsync();
+            var clientStream = await Client.OpenOutboundStreamAsync(QuicStreamType.Unidirectional);
 
             for (int i = 0; i <= last; i++)
             {

@@ -14,24 +14,18 @@
   <ItemGroup>
     <Compile Include="**\*.cs" />
     <Compile Include="..\..\src\Resources\*.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\QuicClientConnectionOptions.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\QuicConnection.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicAbortDirection.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicConnectionOptions.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicException.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\QuicListener.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicError.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicDefaults.cs" />
+    <Compile Include="..\..\src\System\Net\Quic\QuicStreamType.cs" />
     <Compile Include="..\..\src\System\Net\Quic\QuicListenerOptions.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\QuicOperationAbortedException.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\QuicOptions.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\QuicStream.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\QuicStreamAbortedException.cs" />
     <Compile Include="..\..\src\System\Net\Quic\Implementations\Managed\**\*.cs" />
-    <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicImplementationProvider.cs" Link="System\Net\Quic\Implementations\QuicImplementationProvider.cs"/>
-    <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicListenerProvider.cs" Link="System\Net\Quic\Implementations\QuicListenerProvider.cs"/>
-    <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicStreamProvider.cs" Link="System\Net\Quic\Implementations\QuicStreamProvider.cs"/>
-    <Compile Include="..\..\src\System\Net\Quic\Implementations\QuicConnectionProvider.cs" Link="System\Net\Quic\Implementations\QuicConnectionProvider.cs"/>
   </ItemGroup>
   <!-- System.Net common -->
   <ItemGroup>
-    <Compile Include="$(CommonPath)System\Threading\Tasks\TaskToApm.cs" Link="Common\System\Threading\Tasks\TaskToApm.cs" />
+    <Compile Include="$(CommonPath)System\Threading\Tasks\TaskToAsyncResult.cs" Link="Common\System\Threading\Tasks\TaskToAsyncResult.cs" />
     <Compile Include="$(CommonPath)System\Net\ArrayBuffer.cs" Link="Common\System\Net\ArrayBuffer.cs" />
     <Compile Include="$(CommonPath)System\Net\MultiArrayBuffer.cs" Link="Common\System\Net\MultiArrayBuffer.cs" />
     <Compile Include="$(CommonPath)System\Net\StreamBuffer.cs" Link="Common\System\Net\StreamBuffer.cs" />
