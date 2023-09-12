@@ -140,13 +140,15 @@ namespace System.Net.Quic.Implementations.Managed
 {
     public sealed partial class ManagedQuicConnection : System.IAsyncDisposable
     {
-        public ManagedQuicConnection(System.Net.Quic.QuicClientConnectionOptions options) { }
+        internal ManagedQuicConnection() { }
+        public static bool IsSupported { get { throw null; } }
         public System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
         public System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get { throw null; } }
         public System.Security.Cryptography.X509Certificates.X509Certificate? RemoteCertificate { get { throw null; } }
         public System.Net.EndPoint RemoteEndPoint { get { throw null; } }
         public System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicStream> AcceptInboundStreamAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public System.Threading.Tasks.ValueTask CloseAsync(long errorCode, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public static System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicConnection> ConnectAsync(System.Net.Quic.QuicClientConnectionOptions options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
         public System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicStream> OpenOutboundStreamAsync(System.Net.Quic.QuicStreamType type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
     }

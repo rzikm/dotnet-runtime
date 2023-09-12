@@ -14,7 +14,6 @@ using System.Net.Quic.Implementations.Managed.Internal.Sockets;
 using System.Net.Quic.Implementations.Managed.Internal.Streams;
 using System.Net.Quic.Implementations.Managed.Internal.Tracing;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
-using System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl;
 using System.Net.Security;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,6 +27,14 @@ namespace System.Net.Quic.Implementations.Managed
 {
     public sealed partial class ManagedQuicConnection : IAsyncDisposable
     {
+        public static bool IsSupported => true;
+        public static async ValueTask<ManagedQuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
+        {
+            var connection = new ManagedQuicConnection(options, TlsFactory.Default);
+            await connection.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            return connection;
+        }
+
         // This limit should ensure that if we can fit at least an ack frame into the packet,
         private const int RequiredAllowanceForSending = 2 * ConnectionId.MaximumLength + 40;
 
@@ -228,10 +235,6 @@ namespace System.Net.Quic.Implementations.Managed
         ///     Unsafe access to the <see cref="RemoteEndPoint"/> field. Does not create a defensive copy!
         /// </summary>
         internal EndPoint UnsafeRemoteEndPoint => _remoteEndpoint;
-
-        public ManagedQuicConnection(QuicClientConnectionOptions options) : this(options, TlsFactory.Default)
-        {
-        }
 
         // client constructor
         internal ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)
