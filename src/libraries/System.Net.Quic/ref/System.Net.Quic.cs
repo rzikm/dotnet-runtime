@@ -140,19 +140,21 @@ namespace System.Net.Quic.Implementations.Managed
 {
     public sealed partial class ManagedQuicConnection : System.Net.Quic.QuicConnection, System.IAsyncDisposable
     {
-        public ManagedQuicConnection(System.Net.Quic.QuicClientConnectionOptions options) : base (default(bool)) { }
-        public override System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
-        public override System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get { throw null; } }
-        public override System.Security.Cryptography.X509Certificates.X509Certificate? RemoteCertificate { get { throw null; } }
-        public override System.Net.IPEndPoint RemoteEndPoint { get { throw null; } }
-        public override System.Threading.Tasks.ValueTask<System.Net.Quic.QuicStream> AcceptInboundStreamAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
-        public override System.Threading.Tasks.ValueTask CloseAsync(long errorCode, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
-        public override System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
-        public override System.Threading.Tasks.ValueTask<System.Net.Quic.QuicStream> OpenOutboundStreamAsync(System.Net.Quic.QuicStreamType type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        internal ManagedQuicConnection() { }
+        public static bool IsSupported { get { throw null; } }
+        public System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
+        public System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get { throw null; } }
+        public System.Security.Cryptography.X509Certificates.X509Certificate? RemoteCertificate { get { throw null; } }
+        public System.Net.EndPoint RemoteEndPoint { get { throw null; } }
+        public System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicStream> AcceptInboundStreamAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public System.Threading.Tasks.ValueTask CloseAsync(long errorCode, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public static System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicConnection> ConnectAsync(System.Net.Quic.QuicClientConnectionOptions options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
+        public System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicStream> OpenOutboundStreamAsync(System.Net.Quic.QuicStreamType type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
     }
     public sealed partial class ManagedQuicListener : System.Net.Quic.QuicListener, System.IAsyncDisposable
     {
-        internal ManagedQuicListener() : base (default(bool)) { }
+        internal ManagedQuicListener() : base(default(bool)) { }
         public static new bool IsSupported { get { throw null; } }
         public System.Net.IPEndPoint ListenEndPoint { get { throw null; } }
         public override System.Threading.Tasks.ValueTask<System.Net.Quic.QuicConnection> AcceptConnectionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
@@ -161,7 +163,7 @@ namespace System.Net.Quic.Implementations.Managed
     }
     public sealed partial class ManagedQuicStream : System.Net.Quic.QuicStream
     {
-        internal ManagedQuicStream() : base (default(bool)) { }
+        internal ManagedQuicStream() : base(default(bool)) { }
         public override bool CanRead { get { throw null; } }
         public override bool CanSeek { get { throw null; } }
         public override bool CanTimeout { get { throw null; } }
