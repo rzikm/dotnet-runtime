@@ -144,7 +144,7 @@ namespace System.Net.Quic.Tests
         {
             var destination = new byte[100];
 
-            var exnTask = Assert.ThrowsAsync<QuicStreamAbortedException>(
+            var exnTask = AssertHelpers.ThrowsQuicExceptionAsync(QuicError.StreamAborted, 
                 async () =>
                 {
                     while (true)
@@ -154,10 +154,10 @@ namespace System.Net.Quic.Tests
                     }
                 });
 
-            stream.RequestAbort(10000);
+            stream.RequestAbort(10000, false);
 
             var exn = await exnTask.WaitAsync(TimeSpan.FromMilliseconds(5_000));
-            Assert.Equal(10000, exn.ErrorCode);
+            Assert.Equal(10000, exn.ApplicationErrorCode);
         }
     }
 }

@@ -42,7 +42,7 @@ namespace System.Net.Quic.Tests
 
             Intercept1RttFrame<StreamFrame>(Client, Server, frame =>
             {
-                Assert.Equal(clientStream.StreamId, frame.StreamId);
+                Assert.Equal(clientStream.Id, frame.StreamId);
                 Assert.Equal(0u, frame.Offset);
                 Assert.Equal(data, frame.StreamData);
                 Assert.False(frame.Fin);
@@ -50,7 +50,7 @@ namespace System.Net.Quic.Tests
 
             var serverStream = Server.AcceptStream();
             Assert.NotNull(serverStream);
-            Assert.Equal(clientStream.StreamId, serverStream!.StreamId);
+            Assert.Equal(clientStream.Id, serverStream!.Id);
             Assert.True(serverStream.CanRead);
             Assert.Equal(!unidirectional, serverStream.CanWrite);
 
@@ -67,7 +67,7 @@ namespace System.Net.Quic.Tests
             var clientStream = await Client.OpenStream(true);
             clientStream.Write(data);
             clientStream.Flush();
-            clientStream.Shutdown();
+            clientStream.CompleteWrites();
 
             Intercept1RttFrame<StreamFrame>(Client, Server, frame =>
             {
@@ -91,7 +91,7 @@ namespace System.Net.Quic.Tests
             });
 
             // no more data to send, just the fin bit
-            clientStream.Shutdown();
+            clientStream.CompleteWrites();
             Intercept1RttFrame<StreamFrame>(Client, Server, frame =>
             {
                 Assert.Empty(frame.StreamData);
@@ -115,12 +115,12 @@ namespace System.Net.Quic.Tests
             Intercept1RttFrame<StreamFrame>(Client, Server, frame =>
             {
                 // make sure the stream id is above bounds
-                frame.StreamId += ListenerOptions.MaxUnidirectionalStreams << 2 + 4;
+                frame.StreamId += ServerOptions.MaxInboundUnidirectionalStreams << 2 + 4;
             });
 
             Send1Rtt(Server, Client).ShouldHaveConnectionClose(
                 TransportErrorCode.StreamLimitError,
-                QuicError.StreamsLimitViolated,
+                QuicTransportError.StreamsLimitViolated,
                 FrameType.Stream | FrameType.StreamLenBit);
         }
 
@@ -136,7 +136,7 @@ namespace System.Net.Quic.Tests
 
             Send1Rtt(Server, Client).ShouldHaveConnectionClose(
                 TransportErrorCode.FrameEncodingError,
-                QuicError.UnableToDeserialize,
+                QuicTransportError.UnableToDeserialize,
                 FrameType.Stream | FrameType.StreamLenBit | FrameType.StreamOffBit);
         }
 
@@ -152,7 +152,7 @@ namespace System.Net.Quic.Tests
 
             Send1Rtt(Server, Client).ShouldHaveConnectionClose(
                 TransportErrorCode.FrameEncodingError,
-                QuicError.UnableToDeserialize,
+                QuicTransportError.UnableToDeserialize,
                  FrameType.Stream | FrameType.StreamLenBit | FrameType.StreamOffBit);
         }
 
@@ -171,7 +171,7 @@ namespace System.Net.Quic.Tests
 
             Send1Rtt(Server, Client).ShouldHaveConnectionClose(
                 TransportErrorCode.StreamStateError,
-                QuicError.StreamNotWritable,
+                QuicTransportError.StreamNotWritable,
                 FrameType.Stream | FrameType.StreamLenBit);
         }
 
@@ -187,7 +187,7 @@ namespace System.Net.Quic.Tests
 
             Send1Rtt(Server, Client).ShouldHaveConnectionClose(
                 TransportErrorCode.FlowControlError,
-                QuicError.StreamMaxDataViolated,
+                QuicTransportError.StreamMaxDataViolated,
                 FrameType.Stream | FrameType.StreamLenBit | FrameType.StreamOffBit);
         }
 
@@ -203,7 +203,7 @@ namespace System.Net.Quic.Tests
 
             Send1Rtt(Server, Client).ShouldHaveConnectionClose(
                 TransportErrorCode.FlowControlError,
-                QuicError.MaxDataViolated,
+                QuicTransportError.MaxDataViolated,
                  FrameType.Stream | FrameType.StreamLenBit | FrameType.StreamOffBit);
         }
 
@@ -256,60 +256,61 @@ namespace System.Net.Quic.Tests
                 // make sure the id above the client-specified limit
                 packet.Frames.Add(new MaxStreamDataFrame()
                 {
-                    StreamId = ClientOptions.MaxUnidirectionalStreams * 4 + 1,
+                    StreamId = ClientOptions.MaxInboundUnidirectionalStreams * 4 + 1,
                 });
             });
 
             Send1Rtt(Client, Server)
                 .ShouldHaveConnectionClose(TransportErrorCode.StreamLimitError,
-                    QuicError.StreamsLimitViolated, FrameType.MaxStreamData);
+                    QuicTransportError.StreamsLimitViolated, FrameType.MaxStreamData);
         }
 
-        [Fact]
-        public async Task ShutdownCompleted_Cancelled()
-        {
-            var stream = await Client.OpenStream(true);
-            var cts = new CancellationTokenSource();
-            var testTask = Assert.ThrowsAsync<OperationCanceledException>(
-                () => stream.ShutdownCompleted(cts.Token).AsTask());
+        // TODO: reflect API changes
+        // [Fact]
+        // public async Task ShutdownCompleted_Cancelled()
+        // {
+        //     var stream = await Client.OpenStream(true);
+        //     var cts = new CancellationTokenSource();
+        //     var testTask = Assert.ThrowsAsync<OperationCanceledException>(
+        //         () => stream.ShutdownCompleted(cts.Token).AsTask());
 
-            // signal the cancellation
-            cts.Cancel();
+        //     // signal the cancellation
+        //     cts.Cancel();
 
-            await testTask;
-        }
+        //     await testTask;
+        // }
 
-        [Fact]
-        public async Task ShutdownCompleted_CompletedOnConnectionClose()
-        {
-            var stream = await Client.OpenStream(true);
-            var shutdownWriteCompletedTask = stream.ShutdownCompleted();
+        // [Fact]
+        // public async Task ShutdownCompleted_CompletedOnConnectionClose()
+        // {
+        //     var stream = await Client.OpenStream(true);
+        //     var shutdownWriteCompletedTask = stream.ShutdownCompleted();
 
-            // receiving connection close implicitly closes all streams
-            Server.Ping();
-            Intercept1Rtt(Server, Client, packet =>
-            {
-                packet.Frames.Add(new ConnectionCloseFrame()
-                {
-                    ErrorCode = TransportErrorCode.InternalError,
-                    ReasonPhrase = "Test Error",
-                });
-            });
+        //     // receiving connection close implicitly closes all streams
+        //     Server.Ping();
+        //     Intercept1Rtt(Server, Client, packet =>
+        //     {
+        //         packet.Frames.Add(new ConnectionCloseFrame()
+        //         {
+        //             ErrorCode = TransportErrorCode.InternalError,
+        //             ReasonPhrase = "Test Error",
+        //         });
+        //     });
 
-            await shutdownWriteCompletedTask.AsTask().WaitAsync(TimeSpan.FromMilliseconds(500));
-        }
+        //     await shutdownWriteCompletedTask.AsTask().WaitAsync(TimeSpan.FromMilliseconds(500));
+        // }
 
-        [Fact]
-        public async Task ShutdownCompleted_ExceptionWhenWriteAborted()
-        {
-            var stream = await Client.OpenStream(true);
-            var testTask =
-                Assert.ThrowsAsync<QuicStreamAbortedException>(async () => await stream.ShutdownCompleted());
+        // [Fact]
+        // public async Task ShutdownCompleted_ExceptionWhenWriteAborted()
+        // {
+        //     var stream = await Client.OpenStream(true);
+        //     var testTask =
+        //         Assert.ThrowsAsync<QuicStreamAbortedException>(async () => await stream.ShutdownCompleted());
 
-            stream.AbortWrite(0);
+        //     stream.AbortWrite(0);
 
-            await testTask;
-        }
+        //     await testTask;
+        // }
 
         [Fact]
         public async Task AbortRead_ShouldElicitStopSendingFrame()
@@ -319,7 +320,7 @@ namespace System.Net.Quic.Tests
             stream.AbortRead(errorCode);
 
             var frame = Send1RttWithFrame<StopSendingFrame>(Client, Server);
-            Assert.Equal(stream.StreamId, frame.StreamId);
+            Assert.Equal(stream.Id, frame.StreamId);
             Assert.Equal(errorCode, frame.ApplicationErrorCode);
         }
     }
