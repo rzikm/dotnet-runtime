@@ -52,7 +52,7 @@ namespace System.Net.Quic;
 /// </item>
 /// </list>
 /// </remarks>
-public sealed partial class QuicStream
+public partial class QuicStream
 {
     /// <summary>
     /// Handle to MsQuic connection object.
@@ -124,12 +124,12 @@ public sealed partial class QuicStream
     /// <summary>
     /// Stream id, see <see href="https://www.rfc-editor.org/rfc/rfc9000.html#name-stream-types-and-identifier" />.
     /// </summary>
-    public long Id => _id;
+    public virtual long Id => _id;
 
     /// <summary>
     /// Stream type, see <see href="https://www.rfc-editor.org/rfc/rfc9000.html#name-stream-types-and-identifier" />.
     /// </summary>
-    public QuicStreamType Type => _type;
+    public virtual QuicStreamType Type => _type;
 
     /// <summary>
     /// A <see cref="Task"/> that will get completed once reading side has been closed.
@@ -137,7 +137,7 @@ public sealed partial class QuicStream
     /// or when <see cref="Abort"/> for <see cref="QuicAbortDirection.Read"/> is called,
     /// or when the peer called <see cref="Abort"/> for <see cref="QuicAbortDirection.Write"/>.
     /// </summary>
-    public Task ReadsClosed => _receiveTcs.GetFinalTask(this);
+    public virtual Task ReadsClosed => _receiveTcs.GetFinalTask(this);
 
     /// <summary>
     /// A <see cref="Task"/> that will get completed once writing side has been closed.
@@ -146,10 +146,16 @@ public sealed partial class QuicStream
     /// or when <see cref="Abort"/> for <see cref="QuicAbortDirection.Write"/> is called,
     /// or when the peer called <see cref="Abort"/> for <see cref="QuicAbortDirection.Read"/>.
     /// </summary>
-    public Task WritesClosed => _sendTcs.GetFinalTask(this);
+    public virtual Task WritesClosed => _sendTcs.GetFinalTask(this);
 
     /// <inheritdoc />
     public override string ToString() => _handle.ToString();
+
+    protected QuicStream(bool managed)
+    {
+        Debug.Assert(managed);
+        _handle = null!;
+    }
 
     /// <summary>
     /// Initializes a new instance of an outbound <see cref="QuicStream" />.
@@ -336,7 +342,7 @@ public sealed partial class QuicStream
     /// <param name="buffer">The region of memory to write data from.</param>
     /// <param name="cancellationToken">The token to monitor for cancellation requests. The default value is <see cref="CancellationToken.None"/>.</param>
     /// <param name="completeWrites">Notifies the peer about gracefully closing the write side, i.e.: sends FIN flag with the data.</param>
-    public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool completeWrites, CancellationToken cancellationToken = default)
+    public async virtual ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool completeWrites, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
 
@@ -427,7 +433,7 @@ public sealed partial class QuicStream
     /// </remarks>
     /// <param name="abortDirection">The direction of the stream to abort.</param>
     /// <param name="errorCode">The error code with which to abort the stream, this value is application protocol (layer above QUIC) dependent.</param>
-    public void Abort(QuicAbortDirection abortDirection, long errorCode)
+    public virtual void Abort(QuicAbortDirection abortDirection, long errorCode)
     {
         if (_disposed == 1)
         {
@@ -485,7 +491,7 @@ public sealed partial class QuicStream
     /// <remarks>
     /// Corresponds to an empty <see href="https://www.rfc-editor.org/rfc/rfc9000.html#frame-stream">STREAM</see> frame with <c>FIN</c> flag set to <c>true</c>.
     /// </remarks>
-    public void CompleteWrites()
+    public virtual void CompleteWrites()
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
 
