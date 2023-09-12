@@ -48,6 +48,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
             Interop.OpenSslQuic.CryptoGetExNewIndex(Interop.OpenSslQuic.CRYPTO_EX_INDEX_SSL, 0, IntPtr.Zero,
                 IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
 
+#if LINUX
         private static readonly TlsCipherSuite[] _supportedCiphers =
         {
             TlsCipherSuite.TLS_AES_128_GCM_SHA256,
@@ -56,6 +57,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
             // not supported yet
             // TlsCipherSuite.TLS_CHACHA20_POLY1305_SHA256
         };
+#endif
 
         private static readonly IntPtr _callbacksPtr;
 
@@ -150,8 +152,10 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
             Interop.OpenSslQuic.SslCtrl(_ssl, SslCtrlCommand.SetMaxProtoVersion, (long)OpenSslTlsVersion.Tls13,
                 IntPtr.Zero);
 
+#if LINUX
             // explicitly set allowed suites
             SetCiphersuites(cipherSuitesPolicy);
+#endif
 
             // init transport parameters
             byte[] buffer = new byte[1024];
@@ -161,10 +165,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
                 Interop.OpenSslQuic.SslSetQuicTransportParams(_ssl, pData, new IntPtr(written));
             }
 
-            if (applicationProtocols == null)
-            {
-                throw new ArgumentNullException(nameof(SslServerAuthenticationOptions.ApplicationProtocols));
-            }
+            ArgumentNullException.ThrowIfNull(applicationProtocols, nameof(SslServerAuthenticationOptions.ApplicationProtocols));
 
             _alpnProtocols = applicationProtocols;
             SetAlpn(applicationProtocols);
@@ -245,6 +246,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
             return true;
         }
 
+#if LINUX
         private void SetCiphersuites(CipherSuitesPolicy? policy)
         {
             // if no policy supplied, use all supported ciphers
@@ -278,6 +280,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
 
             Interop.OpenSslQuic.SslSetCiphersuites(_ssl, ciphersString);
         }
+#endif
 
         private unsafe void SetAlpn(List<SslApplicationProtocol> protos)
         {
@@ -404,7 +407,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
             return default;
         }
 
+#pragma warning disable IDE0060 // Remove unused parameter
         private static int TlsExtCallbackImpl(IntPtr ssl, ref int al, IntPtr arg)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             var namePtr = Interop.OpenSslQuic.SslGetServername(ssl, 0);
             var tls = GetTlsInstance(ssl);
@@ -447,11 +452,13 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl
             return 1;
         }
 
+#pragma warning disable IDE0060 // Remove unused parameter
         private static int SendAlertImpl(IntPtr ssl, OpenSslEncryptionLevel level, byte alert)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             var tls = GetTlsInstance(ssl);
 
-            tls._connection.SendTlsAlert(ToManagedEncryptionLevel(level), alert);
+            tls._connection.SendTlsAlert(alert);
             return 1;
         }
 

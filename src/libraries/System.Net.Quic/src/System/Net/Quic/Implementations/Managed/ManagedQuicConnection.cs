@@ -229,6 +229,10 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         internal EndPoint UnsafeRemoteEndPoint => _remoteEndpoint;
 
+        public ManagedQuicConnection(QuicClientConnectionOptions options) : this(options, TlsFactory.Default)
+        {
+        }
+
         // client constructor
         internal ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)
         {
@@ -611,6 +615,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (!Connected)
             {
+                // TODO: is this necessary?
                 // abandon connection attempt
                 _connectTcs.TryCompleteException(new QuicException(QuicError.ConnectionAborted, errorCode, "Abandon connection attempt"));
                 _closeTcs.TryComplete();
@@ -671,7 +676,7 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        internal void SendTlsAlert(EncryptionLevel level, int alert)
+        internal void SendTlsAlert(int alert)
         {
             // RFC: A TLS alert is turned into a QUIC connection error by converting the
             // one-byte alert description into a QUIC error code.  The alert
@@ -708,7 +713,9 @@ namespace System.Net.Quic.Implementations.Managed
         // TODO-RZ: create a defensive copy of the endpoint
         public EndPoint RemoteEndPoint => _remoteEndpoint;
 
+#pragma warning disable IDE0060 // Remove unused parameter
         internal ValueTask ConnectAsync(CancellationToken cancellationToken = default)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             ThrowIfDisposed();
             ThrowIfError();
@@ -764,10 +771,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         private void ThrowIfDisposed()
         {
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(ManagedQuicConnection));
-            }
+            ObjectDisposedException.ThrowIf(_disposed, typeof(ManagedQuicConnection));
         }
 
         internal void ThrowIfError()
@@ -780,7 +784,7 @@ namespace System.Net.Quic.Implementations.Managed
                 if (!_outboundError.IsQuicError)
                 {
                     // connection close initiated by application
-                    throw new QuicException(QuicError.ConnectionAborted, (long)_outboundError.ErrorCode, "Connection close initiated by application");
+                    throw new QuicException(QuicError.OperationAborted, null, "Operation Aborted");
                 }
                 else if (_outboundError.ErrorCode != TransportErrorCode.NoError)
                 {
@@ -898,12 +902,12 @@ namespace System.Net.Quic.Implementations.Managed
         {
             return _inboundError != null
                 ? MakeConnectionAbortedException(_inboundError) // initiated by peer
-                : new QuicException(QuicError.OperationAborted, null, "Initiated by us");
+                : new QuicException(QuicError.OperationAborted, null, "Operation Aborted"); // initiated by us
         }
 
         private static QuicException MakeConnectionAbortedException(QuicTransportError error)
         {
-            return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, error.ReasonPhrase ?? "");
+            return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, error.ReasonPhrase ?? "Connection aborted");
         }
 
         internal void OnSocketContextException(Exception e)

@@ -90,7 +90,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Recovery
             return sentTimestamp < recovery.CongestionRecoveryStartTime;
         }
 
+#pragma warning disable IDE0060 // Remove unused parameter
         private static bool InPersistentCongestion(SentPacket largestLostPacket)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             // var pto = SmoothedRtt.Ticks + Math.Max(4 * RttVariation.Ticks, Recovery.TimerGranularity.Ticks) +
             // MaxAckDelay.Ticks;
