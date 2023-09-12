@@ -5,6 +5,7 @@ using System.IO;
 using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Sockets;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
+using System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -51,11 +52,13 @@ namespace System.Net.Quic.Implementations.Managed
 
         public ValueTask DisposeAsync()
         {
-            if (_disposed) return;
-            
+            if (_disposed) return ValueTask.CompletedTask;
+
             _disposed = true;
 
             _socketContext.StopOrOrphan();
+
+            return ValueTask.CompletedTask;
         }
     }
 }
