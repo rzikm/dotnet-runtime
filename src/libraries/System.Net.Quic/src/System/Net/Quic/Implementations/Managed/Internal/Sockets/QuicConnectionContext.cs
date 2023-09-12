@@ -41,7 +41,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         public QuicConnectionContext(QuicServerSocketContext parent, EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
         {
             _parent = parent;
-            Connection = new ManagedQuicConnection(parent.ListenerOptions, this, remoteEndpoint, odcid, tlsFactory);
+            // TODO-RZ: move processing of first packet to Listener and create connection context only after we get the QuicServerConnectionOptions.
+            Connection = new ManagedQuicConnection(parent.ListenerOptions.ConnectionOptionsCallback(null!, default, default).AsTask().GetAwaiter().GetResult(), this, remoteEndpoint, odcid, tlsFactory);
             Connection.SetSocketContext(this);
 
             ObjectPool<SentPacket>? sentPacketPool = new ObjectPool<SentPacket>(256);
