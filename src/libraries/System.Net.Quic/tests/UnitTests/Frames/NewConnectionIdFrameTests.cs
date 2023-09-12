@@ -53,7 +53,7 @@ namespace System.Net.Quic.Tests.Frames
             // now we are in trouble
             Send1Rtt(Client, Server).ShouldHaveConnectionClose(
                 TransportErrorCode.ProtocolViolation,
-                QuicError.InconsistentNewConnectionIdFrame,
+                QuicTransportError.InconsistentNewConnectionIdFrame,
                 FrameType.NewConnectionId);
         }
 
@@ -73,7 +73,7 @@ namespace System.Net.Quic.Tests.Frames
             // now we are in trouble
             Send1Rtt(Client, Server).ShouldHaveConnectionClose(
                 TransportErrorCode.ProtocolViolation,
-                QuicError.InconsistentNewConnectionIdFrame,
+                QuicTransportError.InconsistentNewConnectionIdFrame,
                 FrameType.NewConnectionId);
         }
     }
