@@ -538,18 +538,18 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             {
                 if (ResetByUs)
                 {
-                    throw new QuicOperationAbortedException();
+                    throw new QuicException(QuicError.OperationAborted, null, "Operation aborted.");
                 }
                 else
                 {
-                    throw new QuicStreamAbortedException("Stream aborted", Error.Value);
+                    throw new QuicException(QuicError.StreamAborted, Error.Value, "Stream aborted");
                 }
             }
         }
 
-#pragma warning disable CA1822 // mark as static
+#pragma warning disable CA1822, IDE0060 // mark as static, remove unused parameter
         public void OnFatalException(Exception exception)
-#pragma warning restore CA1822 // mark as static
+#pragma warning restore CA1822, IDE0060 // mark as static
         {
             // TODO-RZ: handle callers blocking on other async tasks
         }

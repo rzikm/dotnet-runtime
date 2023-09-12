@@ -22,7 +22,9 @@ namespace System.Net.Quic.Implementations.Managed
 
         private bool _doKeyUpdate;
 
+#pragma warning disable IDE0060 // Remove unused parameter
         internal void ReceiveData(QuicReader reader, EndPoint sender, QuicSocketContext.RecvContext ctx)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             if (_isDraining)
             {
@@ -243,7 +245,7 @@ namespace System.Net.Quic.Implementations.Managed
                         QuicTransportError.InvalidReservedBits);
                 }
 
-                result = ReceiveCore(reader, pnSpace, pnOffset, header.PacketNumberLength, packetType, recvSeal,
+                result = ReceiveCore(reader, pnSpace, header.PacketNumberLength, packetType, recvSeal,
                     context);
             }
 
@@ -336,11 +338,11 @@ namespace System.Net.Quic.Implementations.Managed
                     QuicTransportError.InvalidReservedBits);
             }
 
-            return ReceiveCore(reader, pnSpace, pnOffset, header.PacketNumberLength, packetType, seal,
+            return ReceiveCore(reader, pnSpace, header.PacketNumberLength, packetType, seal,
                 context);
         }
 
-        private ProcessPacketResult ReceiveCore(QuicReader reader, PacketNumberSpace pnSpace, int pnOffset,
+        private ProcessPacketResult ReceiveCore(QuicReader reader, PacketNumberSpace pnSpace,
             int pnLength,
             PacketType packetType, CryptoSeal seal, QuicSocketContext.RecvContext context)
         {

@@ -231,9 +231,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
             _connection.AddHandshakeData(level, data);
         }
 
-        private void SendTlsAlert(EncryptionLevel level, int alert)
+        private void SendTlsAlert(int alert)
         {
-            _connection.SendTlsAlert(level, alert);
+            _connection.SendTlsAlert(alert);
         }
 
         private void SetEncryptionSecrets(EncryptionLevel level, ReadOnlySpan<byte> readSecret,

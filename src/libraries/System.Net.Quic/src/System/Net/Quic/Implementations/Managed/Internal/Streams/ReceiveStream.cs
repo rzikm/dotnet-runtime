@@ -455,7 +455,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
         public void OnFatalException(Exception e)
         {
-            if (e is QuicException qe && qe.QuicError == QuicError.ConnectionAborted && abortedException.ErrorCode == 0)
+            // TODO-RZ: This feels a bit fishy now, I don't remember why it was necesary.
+            if (e is QuicException qe && qe.QuicError == QuicError.ConnectionAborted && qe.ApplicationErrorCode == null)
             {
                 _deliverableChannel.Writer.TryComplete(null);
             }
@@ -484,7 +485,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         {
             _deliverableChannel.Writer.TryComplete(byUs
                 ? new QuicException(QuicError.OperationAborted, null, "Stream aborted by us.")
-                : new QuicException(QuicError.StreamAborted, errorCode));
+                : new QuicException(QuicError.StreamAborted, errorCode, "Read aborted by peer."));
         }
     }
 }

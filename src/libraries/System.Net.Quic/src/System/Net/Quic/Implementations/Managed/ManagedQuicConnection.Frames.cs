@@ -572,7 +572,7 @@ namespace System.Net.Quic.Implementations.Managed
             // keep only the first error
             if (_inboundError == null)
             {
-                _inboundError = new QuicError((TransportErrorCode)frame.ErrorCode, frame.ReasonPhrase,
+                _inboundError = new QuicTransportError((TransportErrorCode)frame.ErrorCode, frame.ReasonPhrase,
                     frame.FrameType, frame.IsQuicError);
 
                 if (_closingPeriodEndTimestamp == null)
@@ -584,7 +584,7 @@ namespace System.Net.Quic.Implementations.Managed
                 {
                     // From RFC: An endpoint that receives a CONNECTION_CLOSE frame MAY send a single packet containing a
                     // CONNECTION_CLOSE frame before entering the draining state, using NO_ERROR code if appropriate.
-                    _outboundError = new QuicError(TransportErrorCode.NoError);
+                    _outboundError = new QuicTransportError(TransportErrorCode.NoError);
                     // draining state will be entered once the error is sent.
                 }
                 else
