@@ -170,5 +170,16 @@ namespace System.Net.Quic.Tests
     {
         public ManagedQuicQuicStreamConformanceTests(ITestOutputHelper output) : base(output, managed: true)
         { }
+
+        //[ActiveIssue("[Long Running Test]")]
+        public override Task ZeroByteRead_BlocksUntilDataAvailableOrNops(ReadWriteMode mode)
+            => base.ZeroByteRead_BlocksUntilDataAvailableOrNops(mode)
+                .WaitAsync(QuicTestBase.SmallTestTimeout);
+
+
+        //[ActiveIssue("[Long Running Test]")]
+        public override Task ReadAsync_DuringReadAsync_ThrowsIfUnsupported()
+            => base.ReadAsync_DuringReadAsync_ThrowsIfUnsupported()
+                .WaitAsync(QuicTestBase.SmallTestTimeout);
     }
 }
