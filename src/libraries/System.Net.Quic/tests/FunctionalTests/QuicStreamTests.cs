@@ -14,10 +14,10 @@ namespace System.Net.Quic.Tests
 {
     [Collection(nameof(DisableParallelization))]
     [ConditionalClass(typeof(QuicTestBase), nameof(QuicTestBase.IsSupported))]
-    public sealed class QuicStreamTests : QuicTestBase
+    public class QuicStreamTests : QuicTestBase
     {
         private static byte[] s_data = "Hello world!"u8.ToArray();
-        public QuicStreamTests(ITestOutputHelper output) : base(output) { }
+        public QuicStreamTests(ITestOutputHelper output, bool managed = false) : base(output, managed) { }
 
         [Fact]
         public async Task BasicTest()
@@ -1524,10 +1524,9 @@ namespace System.Net.Quic.Tests
         }
     }
 
-    [ConditionalClass(typeof(QuicTestBase<ManagedQuicProviderFactory>), nameof(QuicTestBase<ManagedQuicProviderFactory>.IsSupported))]
     [Collection(nameof(DisableParallelization))]
-    public sealed class QuicStreamTests_ManagedQuicProvider : QuicStreamTests<ManagedQuicProviderFactory>
+    public sealed class QuicStreamTests_ManagedQuicProvider : QuicStreamTests
     {
-        public QuicStreamTests_ManagedQuicProvider(ITestOutputHelper output) : base(output) { }
+        public QuicStreamTests_ManagedQuicProvider(ITestOutputHelper output) : base(output, managed: true) { }
     }
 }

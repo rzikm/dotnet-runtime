@@ -12,9 +12,9 @@ namespace System.Net.Quic.Implementations.Managed
     public sealed class ManagedQuicListener : QuicListener, IAsyncDisposable
     {
         public static new bool IsSupported => true;
-        public static new ValueTask<ManagedQuicListener> ListenAsync(QuicListenerOptions options, CancellationToken cancellationToken = default)
+        public static new ValueTask<QuicListener> ListenAsync(QuicListenerOptions options, CancellationToken cancellationToken = default)
         {
-            return ValueTask.FromResult(new ManagedQuicListener(options));
+            return ValueTask.FromResult((QuicListener)new ManagedQuicListener(options));
         }
 
         private bool _disposed;

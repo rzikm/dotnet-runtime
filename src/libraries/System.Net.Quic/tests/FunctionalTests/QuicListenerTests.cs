@@ -15,9 +15,9 @@ namespace System.Net.Quic.Tests
 {
     [Collection(nameof(DisableParallelization))]
     [ConditionalClass(typeof(QuicTestBase), nameof(QuicTestBase.IsSupported))]
-    public sealed class QuicListenerTests : QuicTestBase
+    public class QuicListenerTests : QuicTestBase
     {
-        public QuicListenerTests(ITestOutputHelper output) : base(output) { }
+        public QuicListenerTests(ITestOutputHelper output, bool managed = false) : base(output, managed) { }
 
         [Fact]
         public async Task Listener_Backlog_Success()
@@ -516,9 +516,8 @@ namespace System.Net.Quic.Tests
         }
     }
 
-    [ConditionalClass(typeof(QuicTestBase<ManagedQuicProviderFactory>), nameof(QuicTestBase<ManagedQuicProviderFactory>.IsSupported))]
-    public sealed class QuicListenerTests_ManagedQuicProvider : QuicListenerTests<ManagedQuicProviderFactory>
+    public sealed class ManagedQuicListenerTests : QuicListenerTests
     {
-        public QuicListenerTests_ManagedQuicProvider(ITestOutputHelper output) : base(output) { }
+        public ManagedQuicListenerTests(ITestOutputHelper output) : base(output, managed: true) { }
     }
 }

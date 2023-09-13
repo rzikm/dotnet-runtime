@@ -26,8 +26,8 @@ namespace System.Net.Quic.Implementations.Managed
 {
     public sealed partial class ManagedQuicConnection : QuicConnection, IAsyncDisposable
     {
-        public static bool IsSupported => true;
-        public static async ValueTask<ManagedQuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
+        public static new bool IsSupported => true;
+        public static new async ValueTask<QuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
         {
             var connection = new ManagedQuicConnection(options, TlsFactory.Default);
             await connection.ConnectAsync(cancellationToken).ConfigureAwait(false);
