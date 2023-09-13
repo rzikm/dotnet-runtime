@@ -601,7 +601,7 @@ public partial class QuicConnection : IAsyncDisposable
     /// And releases all resources associated with the connection.
     /// </summary>
     /// <returns>A task that represents the asynchronous dispose operation.</returns>
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
