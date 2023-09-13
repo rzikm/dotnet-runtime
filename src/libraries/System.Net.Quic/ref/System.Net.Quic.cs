@@ -32,7 +32,7 @@ namespace System.Net.Quic
         public virtual System.Threading.Tasks.ValueTask<System.Net.Quic.QuicStream> AcceptInboundStreamAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public virtual System.Threading.Tasks.ValueTask CloseAsync(long errorCode, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public static System.Threading.Tasks.ValueTask<System.Net.Quic.QuicConnection> ConnectAsync(System.Net.Quic.QuicClientConnectionOptions options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
-        public System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
+        public virtual System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
         public virtual System.Threading.Tasks.ValueTask<System.Net.Quic.QuicStream> OpenOutboundStreamAsync(System.Net.Quic.QuicStreamType type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public override string ToString() { throw null; }
     }
@@ -72,8 +72,8 @@ namespace System.Net.Quic
         protected QuicListener(bool managed) { }
         public static bool IsSupported { get { throw null; } }
         public virtual System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
-        public System.Threading.Tasks.ValueTask<System.Net.Quic.QuicConnection> AcceptConnectionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
-        public System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
+        public virtual System.Threading.Tasks.ValueTask<System.Net.Quic.QuicConnection> AcceptConnectionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public virtual System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
         public static System.Threading.Tasks.ValueTask<System.Net.Quic.QuicListener> ListenAsync(System.Net.Quic.QuicListenerOptions options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public override string ToString() { throw null; }
     }
@@ -138,43 +138,43 @@ namespace System.Net.Quic
 }
 namespace System.Net.Quic.Implementations.Managed
 {
-    public sealed partial class ManagedQuicConnection : System.IAsyncDisposable
+    public sealed partial class ManagedQuicConnection : System.Net.Quic.QuicConnection, System.IAsyncDisposable
     {
-        public ManagedQuicConnection(System.Net.Quic.QuicClientConnectionOptions options) { }
-        public System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
-        public System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get { throw null; } }
-        public System.Security.Cryptography.X509Certificates.X509Certificate? RemoteCertificate { get { throw null; } }
-        public System.Net.EndPoint RemoteEndPoint { get { throw null; } }
-        public System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicStream> AcceptInboundStreamAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
-        public System.Threading.Tasks.ValueTask CloseAsync(long errorCode, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
-        public System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
-        public System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicStream> OpenOutboundStreamAsync(System.Net.Quic.QuicStreamType type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public ManagedQuicConnection(System.Net.Quic.QuicClientConnectionOptions options) : base (default(bool)) { }
+        public override System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
+        public override System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get { throw null; } }
+        public override System.Security.Cryptography.X509Certificates.X509Certificate? RemoteCertificate { get { throw null; } }
+        public override System.Net.IPEndPoint RemoteEndPoint { get { throw null; } }
+        public override System.Threading.Tasks.ValueTask<System.Net.Quic.QuicStream> AcceptInboundStreamAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public override System.Threading.Tasks.ValueTask CloseAsync(long errorCode, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public override System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
+        public override System.Threading.Tasks.ValueTask<System.Net.Quic.QuicStream> OpenOutboundStreamAsync(System.Net.Quic.QuicStreamType type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
     }
-    public sealed partial class ManagedQuicListener : System.IAsyncDisposable
+    public sealed partial class ManagedQuicListener : System.Net.Quic.QuicListener, System.IAsyncDisposable
     {
-        internal ManagedQuicListener() { }
-        public static bool IsSupported { get { throw null; } }
+        internal ManagedQuicListener() : base (default(bool)) { }
+        public static new bool IsSupported { get { throw null; } }
         public System.Net.IPEndPoint ListenEndPoint { get { throw null; } }
-        public System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicConnection> AcceptConnectionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
-        public System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
-        public static System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicListener> ListenAsync(System.Net.Quic.QuicListenerOptions options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public override System.Threading.Tasks.ValueTask<System.Net.Quic.QuicConnection> AcceptConnectionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public override System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
+        public static new System.Threading.Tasks.ValueTask<System.Net.Quic.Implementations.Managed.ManagedQuicListener> ListenAsync(System.Net.Quic.QuicListenerOptions options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
     }
-    public sealed partial class ManagedQuicStream : System.IO.Stream
+    public sealed partial class ManagedQuicStream : System.Net.Quic.QuicStream
     {
-        internal ManagedQuicStream() { }
+        internal ManagedQuicStream() : base (default(bool)) { }
         public override bool CanRead { get { throw null; } }
         public override bool CanSeek { get { throw null; } }
         public override bool CanTimeout { get { throw null; } }
         public override bool CanWrite { get { throw null; } }
-        public long Id { get { throw null; } }
+        public override long Id { get { throw null; } }
         public override long Length { get { throw null; } }
         public override long Position { get { throw null; } set { } }
-        public System.Threading.Tasks.Task ReadClosed { get { throw null; } }
+        public override System.Threading.Tasks.Task ReadsClosed { get { throw null; } }
         public override int ReadTimeout { get { throw null; } set { } }
-        public System.Threading.Tasks.Task WriteClosed { get { throw null; } }
+        public override System.Threading.Tasks.Task WritesClosed { get { throw null; } }
         public override int WriteTimeout { get { throw null; } set { } }
-        public void Abort(System.Net.Quic.QuicAbortDirection abortDirection, long errorCode) { }
-        public void CompleteWrites() { }
+        public override void Abort(System.Net.Quic.QuicAbortDirection abortDirection, long errorCode) { }
+        public override void CompleteWrites() { }
         protected override void Dispose(bool disposing) { }
         public override System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
         public override void Flush() { }
@@ -190,7 +190,7 @@ namespace System.Net.Quic.Implementations.Managed
         public void Write(System.ReadOnlySpan<byte> buffer, bool endStream) { }
         public System.Threading.Tasks.ValueTask WriteAsync(System.Buffers.ReadOnlySequence<byte> buffers, bool endStream, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public System.Threading.Tasks.ValueTask WriteAsync(System.Buffers.ReadOnlySequence<byte> buffers, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
-        public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, bool endStream, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public override System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, bool completeWrites, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public override System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<System.ReadOnlyMemory<byte>> buffers, bool endStream, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public System.Threading.Tasks.ValueTask WriteAsync(System.ReadOnlyMemory<System.ReadOnlyMemory<byte>> buffers, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }

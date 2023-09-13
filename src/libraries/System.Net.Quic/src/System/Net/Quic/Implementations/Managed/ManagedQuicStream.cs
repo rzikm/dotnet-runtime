@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-#nullable  enable
-
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    public sealed class ManagedQuicStream : Stream
+    public sealed class ManagedQuicStream : QuicStream
     {
         /// <summary>
         ///     Node to the linked list of all flushable streams. Should be accessed only by the <see cref="StreamCollection"/> class.
@@ -58,6 +56,7 @@ namespace System.Net.Quic.Implementations.Managed
         internal SendStream? SendStream { get; }
 
         internal ManagedQuicStream(long streamId, ReceiveStream? receiveStream, SendStream? sendStream, ManagedQuicConnection connection)
+            : base(true)
         {
             // trivial check whether buffer nullable combination makes sense with respect to streamId
             Debug.Assert(receiveStream != null || sendStream != null);
@@ -78,17 +77,17 @@ namespace System.Net.Quic.Implementations.Managed
         public override bool CanSeek => false;
         public override bool CanTimeout => false;
 
-        public long Id { get; }
+        public override long Id { get; }
 
         public override long Length => throw new NotSupportedException();
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
-        public Task ReadClosed => throw new NotImplementedException();
+        public override Task ReadsClosed => throw new NotImplementedException();
         public override int ReadTimeout { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public Task WriteClosed => throw new NotImplementedException();
+        public override Task WritesClosed => throw new NotImplementedException();
         public override int WriteTimeout { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
-        public void Abort(QuicAbortDirection abortDirection, long errorCode)
+        public override void Abort(QuicAbortDirection abortDirection, long errorCode)
         {
             ThrowIfDisposed();
 
@@ -103,7 +102,7 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        public void CompleteWrites()
+        public override void CompleteWrites()
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
@@ -209,14 +208,14 @@ namespace System.Net.Quic.Implementations.Managed
             return WriteAsync(buffer, false, cancellationToken);
         }
 
-        public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool endStream, CancellationToken cancellationToken = default)
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, bool completeWrites, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
             ThrowIfNotWritable();
 
             // TODO-RZ: optimize away some of the copying
-            await WriteAsyncInternal(buffer, endStream, cancellationToken).ConfigureAwait(false);
+            await WriteAsyncInternal(buffer, completeWrites, cancellationToken).ConfigureAwait(false);
             await FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
