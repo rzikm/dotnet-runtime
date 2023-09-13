@@ -25,6 +25,8 @@ namespace System.Net.Quic.Implementations.Managed
         private ManagedQuicListener(QuicListenerOptions options)
             : base(true)
         {
+            options.Validate(nameof(options));
+
             var listenEndPoint = options.ListenEndPoint ?? new IPEndPoint(IPAddress.Any, 0);
 
             var channel = Channel.CreateBounded<ManagedQuicConnection>(new BoundedChannelOptions(options.ListenBacklog)
