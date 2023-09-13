@@ -1,21 +1,18 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.IO;
-using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Sockets;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
-using System.Net.Quic.Implementations.Managed.Internal.Tls.OpenSsl;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    public sealed class ManagedQuicListener : IAsyncDisposable
+    public sealed class ManagedQuicListener : QuicListener, IAsyncDisposable
     {
-        public static bool IsSupported => true;
-        public static ValueTask<ManagedQuicListener> ListenAsync(QuicListenerOptions options, CancellationToken cancellationToken = default)
+        public static new bool IsSupported => true;
+        public static new ValueTask<ManagedQuicListener> ListenAsync(QuicListenerOptions options, CancellationToken cancellationToken = default)
         {
             return ValueTask.FromResult(new ManagedQuicListener(options));
         }
@@ -26,6 +23,7 @@ namespace System.Net.Quic.Implementations.Managed
         private readonly QuicServerSocketContext _socketContext;
 
         private ManagedQuicListener(QuicListenerOptions options)
+            : base(true)
         {
             var listenEndPoint = options.ListenEndPoint ?? new IPEndPoint(IPAddress.Any, 0);
 
@@ -43,14 +41,14 @@ namespace System.Net.Quic.Implementations.Managed
 
         public IPEndPoint ListenEndPoint => _socketContext.LocalEndPoint;
 
-        public ValueTask<ManagedQuicConnection> AcceptConnectionAsync(CancellationToken cancellationToken = default)
+        public override async ValueTask<QuicConnection> AcceptConnectionAsync(CancellationToken cancellationToken = default)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            return _acceptQueue.ReadAsync(cancellationToken);
+            return await _acceptQueue.ReadAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        public ValueTask DisposeAsync()
+        public override ValueTask DisposeAsync()
         {
             if (_disposed) return ValueTask.CompletedTask;
 

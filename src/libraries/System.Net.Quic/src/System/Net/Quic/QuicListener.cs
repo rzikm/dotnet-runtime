@@ -179,7 +179,7 @@ public partial class QuicListener : IAsyncDisposable
     /// </remarks>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A task that will contain a fully connected <see cref="QuicConnection" /> which successfully finished the handshake and is ready to be used.</returns>
-    public async ValueTask<QuicConnection> AcceptConnectionAsync(CancellationToken cancellationToken = default)
+    public virtual async ValueTask<QuicConnection> AcceptConnectionAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
 
@@ -367,7 +367,7 @@ public partial class QuicListener : IAsyncDisposable
     /// Stops listening for new connections and releases all resources associated with the listener.
     /// </summary>
     /// <returns>A task that represents the asynchronous dispose operation.</returns>
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
