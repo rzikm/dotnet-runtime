@@ -43,6 +43,7 @@ namespace System.Net.Quic.Tests
         public bool _managed;
         public const int PassingTestTimeoutMilliseconds = 4 * 60 * 1000;
         public static TimeSpan PassingTestTimeout => TimeSpan.FromMilliseconds(PassingTestTimeoutMilliseconds);
+        public static TimeSpan SmallTestTimeout => TimeSpan.FromSeconds(10);
 
         static unsafe QuicTestBase()
         {

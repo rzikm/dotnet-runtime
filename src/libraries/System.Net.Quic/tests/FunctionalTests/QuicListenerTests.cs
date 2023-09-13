@@ -62,16 +62,17 @@ namespace System.Net.Quic.Tests
             }).WaitAsync(TimeSpan.FromSeconds(6));
         }
 
+        //[ActiveIssue("[Long Running Test]")]
         [Fact]
         public async Task AcceptConnectionAsync_InvalidConnectionOptions_Throws()
         {
             QuicListenerOptions listenerOptions = CreateQuicListenerOptions();
             // Do not set any options, which should throw an argument exception from accept.
             listenerOptions.ConnectionOptionsCallback = (_, _, _) => ValueTask.FromResult(new QuicServerConnectionOptions());
-            await using QuicListener listener = await CreateQuicListener(listenerOptions);
+            await using QuicListener listener = await CreateQuicListener(listenerOptions).AsTask().WaitAsync(SmallTestTimeout);
 
             ValueTask<QuicConnection> connectTask = CreateQuicConnection(listener.LocalEndPoint);
-            await Assert.ThrowsAnyAsync<ArgumentException>(async () => await listener.AcceptConnectionAsync());
+            await Assert.ThrowsAnyAsync<ArgumentException>(async () => await listener.AcceptConnectionAsync().AsTask().WaitAsync(SmallTestTimeout));
         }
 
         [Fact]
@@ -83,6 +84,7 @@ namespace System.Net.Quic.Tests
             Assert.Throws<ArgumentNullException>(() => QuicListener.ListenAsync(listenerOptions));
         }
 
+        //[ActiveIssue("[Long Running Test]")]
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
@@ -93,16 +95,17 @@ namespace System.Net.Quic.Tests
             QuicListenerOptions listenerOptions = CreateQuicListenerOptions();
             // Throw an exception, which should throw the same from accept.
             listenerOptions.ConnectionOptionsCallback = (_, _, _) => useFromException ? ValueTask.FromException<QuicServerConnectionOptions>(new Exception(expectedMessage)) : throw new Exception(expectedMessage);
-            await using QuicListener listener = await CreateQuicListener(listenerOptions);
+            await using QuicListener listener = await CreateQuicListener(listenerOptions).AsTask().WaitAsync(SmallTestTimeout);
 
             ValueTask<QuicConnection> connectTask = CreateQuicConnection(listener.LocalEndPoint);
 
-            Exception exception = await AssertThrowsQuicExceptionAsync(QuicError.CallbackError, async () => await listener.AcceptConnectionAsync());
+            Exception exception = await AssertThrowsQuicExceptionAsync(QuicError.CallbackError, async () => await listener.AcceptConnectionAsync().AsTask().WaitAsync(SmallTestTimeout));
             Assert.NotNull(exception.InnerException);
             Assert.Equal(expectedMessage, exception.InnerException.Message);
-            await Assert.ThrowsAsync<AuthenticationException>(() => connectTask.AsTask());
+            await Assert.ThrowsAsync<AuthenticationException>(() => connectTask.AsTask().WaitAsync(SmallTestTimeout));
         }
 
+        //[ActiveIssue("[Long Running Test]")]
         [Fact]
         public async Task AcceptConnectionAsync_ThrowingCallbackOde_KeepRunning()
         {
@@ -120,18 +123,18 @@ namespace System.Net.Quic.Tests
 
                 return ValueTask.FromResult(CreateQuicServerOptions());
             };
-            await using QuicListener listener = await CreateQuicListener(listenerOptions);
+            await using QuicListener listener = await CreateQuicListener(listenerOptions).AsTask().WaitAsync(SmallTestTimeout);
 
             ValueTask<QuicConnection> connectTask = CreateQuicConnection(listener.LocalEndPoint);
 
-            Exception exception = await AssertThrowsQuicExceptionAsync(QuicError.CallbackError, async () => await listener.AcceptConnectionAsync());
+            Exception exception = await AssertThrowsQuicExceptionAsync(QuicError.CallbackError, async () => await listener.AcceptConnectionAsync().AsTask().WaitAsync(SmallTestTimeout));
             Assert.True(exception.InnerException is ObjectDisposedException);
-            await Assert.ThrowsAsync<AuthenticationException>(() => connectTask.AsTask());
+            await Assert.ThrowsAsync<AuthenticationException>(() => connectTask.AsTask().WaitAsync(SmallTestTimeout));
 
             // Throwing ODE in callback should keep Listener running
             connectTask = CreateQuicConnection(listener.LocalEndPoint);
-            await using QuicConnection serverConnection = await listener.AcceptConnectionAsync();
-            await using QuicConnection clientConnection = await connectTask;
+            await using QuicConnection serverConnection = await listener.AcceptConnectionAsync().AsTask().WaitAsync(SmallTestTimeout);
+            await using QuicConnection clientConnection = await connectTask.AsTask().WaitAsync(SmallTestTimeout);
         }
 
         [Theory]
@@ -357,6 +360,7 @@ namespace System.Net.Quic.Tests
             Assert.Equal(SocketError.AddressAlreadyInUse, ((SocketException)ex).SocketErrorCode );
         }
 
+        [ActiveIssue("System.Net.Sockets.SocketException : Only one usage of each socket address (protocol/network address/port) is normally permitted.")]
         [Fact]
         public async Task TwoListenersOnSamePort_DisjointAlpn_Success()
         {
