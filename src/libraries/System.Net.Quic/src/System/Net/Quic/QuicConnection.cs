@@ -36,7 +36,7 @@ namespace System.Net.Quic;
 /// Each connection can then open outbound stream: <see cref="QuicConnection.OpenOutboundStreamAsync(QuicStreamType, CancellationToken)" />,
 /// or accept an inbound stream: <see cref="QuicConnection.AcceptInboundStreamAsync(CancellationToken)" />.
 /// </remarks>
-public sealed partial class QuicConnection : IAsyncDisposable
+public partial class QuicConnection : IAsyncDisposable
 {
 #if DEBUG
     /// <summary>
@@ -155,23 +155,23 @@ public sealed partial class QuicConnection : IAsyncDisposable
     /// <summary>
     /// The remote endpoint used for this connection.
     /// </summary>
-    public IPEndPoint RemoteEndPoint => _remoteEndPoint;
+    public virtual IPEndPoint RemoteEndPoint => _remoteEndPoint;
     /// <summary>
     /// The local endpoint used for this connection.
     /// </summary>
-    public IPEndPoint LocalEndPoint => _localEndPoint;
+    public virtual IPEndPoint LocalEndPoint => _localEndPoint;
 
     /// <summary>
     /// Gets the name of the server the client is trying to connect to. That name is used for server certificate validation. It can be a DNS name or an IP address.
     /// </summary>
     /// <returns>The name of the server the client is trying to connect to.</returns>
-    public string TargetHostName => _sslConnectionOptions.TargetHost ?? string.Empty;
+    public virtual string TargetHostName => _sslConnectionOptions.TargetHost ?? string.Empty;
 
     /// <summary>
     /// The certificate provided by the peer.
     /// For an outbound/client connection will always have the peer's (server) certificate; for an inbound/server one, only if the connection requested and the peer (client) provided one.
     /// </summary>
-    public X509Certificate? RemoteCertificate
+    public virtual X509Certificate? RemoteCertificate
     {
         get
         {
@@ -183,10 +183,16 @@ public sealed partial class QuicConnection : IAsyncDisposable
     /// <summary>
     /// Final, negotiated application protocol.
     /// </summary>
-    public SslApplicationProtocol NegotiatedApplicationProtocol => _negotiatedApplicationProtocol;
+    public virtual SslApplicationProtocol NegotiatedApplicationProtocol => _negotiatedApplicationProtocol;
 
     /// <inheritdoc />
     public override string ToString() => _handle.ToString();
+
+    protected QuicConnection(bool managed)
+    {
+        Debug.Assert(managed);
+        _handle = null!;
+    }
 
     /// <summary>
     /// Initializes a new instance of an outbound <see cref="QuicConnection" />.
@@ -366,7 +372,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
     /// <param name="type">The type of the stream, i.e. unidirectional or bidirectional.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>An asynchronous task that completes with the opened <see cref="QuicStream" />.</returns>
-    public async ValueTask<QuicStream> OpenOutboundStreamAsync(QuicStreamType type, CancellationToken cancellationToken = default)
+    public virtual async ValueTask<QuicStream> OpenOutboundStreamAsync(QuicStreamType type, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
 
@@ -397,7 +403,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
     /// </summary>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>An asynchronous task that completes with the accepted <see cref="QuicStream" />.</returns>
-    public async ValueTask<QuicStream> AcceptInboundStreamAsync(CancellationToken cancellationToken = default)
+    public virtual async ValueTask<QuicStream> AcceptInboundStreamAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
 
@@ -436,7 +442,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
     /// <param name="errorCode">Application provided code with the reason for closure.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>An asynchronous task that completes when the connection is closed.</returns>
-    public ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
+    public virtual ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
 
@@ -586,7 +592,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
     /// And releases all resources associated with the connection.
     /// </summary>
     /// <returns>A task that represents the asynchronous dispose operation.</returns>
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {

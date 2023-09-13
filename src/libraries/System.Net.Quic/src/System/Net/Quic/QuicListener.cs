@@ -27,7 +27,7 @@ namespace System.Net.Quic;
 /// Unlike the connection and stream, <see cref="QuicListener" /> lifetime is not linked to any of the accepted connections.
 /// It can be safely disposed while keeping the accepted connection alive. The <see cref="DisposeAsync"/> will only stop listening for any other inbound connections.
 /// </remarks>
-public sealed partial class QuicListener : IAsyncDisposable
+public partial class QuicListener : IAsyncDisposable
 {
     /// <summary>
     /// Returns <c>true</c> if QUIC is supported on the current machine and can be used; otherwise, <c>false</c>.
@@ -87,12 +87,12 @@ public sealed partial class QuicListener : IAsyncDisposable
     /// <summary>
     /// Selects connection options for incoming connections.
     /// </summary>
-    private readonly Func<QuicConnection, SslClientHelloInfo, CancellationToken, ValueTask<QuicServerConnectionOptions>> _connectionOptionsCallback;
+    private readonly Func<QuicConnection, SslClientHelloInfo, CancellationToken, ValueTask<QuicServerConnectionOptions>> _connectionOptionsCallback = null!;
 
     /// <summary>
     /// Incoming connections waiting to be accepted via AcceptAsync. The item will either be fully connected <see cref="QuicConnection"/> or <see cref="Exception"/> if the handshake failed.
     /// </summary>
-    private readonly Channel<object> _acceptQueue;
+    private readonly Channel<object> _acceptQueue = Channel.CreateUnbounded<object>();
     /// <summary>
     /// Allowed number of pending incoming connections.
     /// Actual value correspond to <c><see cref="QuicListenerOptions.ListenBacklog"/> - # <see cref="StartConnectionHandshake"/> in progress - <see cref="_acceptQueue"/>.Count</c> and is always <c>>= 0</c>.
@@ -101,12 +101,23 @@ public sealed partial class QuicListener : IAsyncDisposable
     private int _pendingConnectionsCapacity;
 
     /// <summary>
+    /// Set when listener is started.
+    /// </summary>
+    private IPEndPoint _localEndPoint = null!;
+
+    /// <summary>
     /// The actual listening endpoint.
     /// </summary>
-    public IPEndPoint LocalEndPoint { get; }
+    public virtual IPEndPoint LocalEndPoint => _localEndPoint;
 
     /// <inheritdoc />
     public override string ToString() => _handle.ToString();
+
+    protected QuicListener(bool managed)
+    {
+        Debug.Assert(managed);
+        _handle = null!;
+    }
 
     /// <summary>
     /// Initializes and starts a new instance of a <see cref="QuicListener" />.
@@ -134,7 +145,6 @@ public sealed partial class QuicListener : IAsyncDisposable
 
         // Save the connection options before starting the listener
         _connectionOptionsCallback = options.ConnectionOptionsCallback;
-        _acceptQueue = Channel.CreateUnbounded<object>();
         _pendingConnectionsCapacity = options.ListenBacklog;
 
         // Start the listener, from now on MsQuic events will come.
@@ -157,7 +167,7 @@ public sealed partial class QuicListener : IAsyncDisposable
 
         // Get the actual listening endpoint.
         address = GetMsQuicParameter<QuicAddr>(_handle, QUIC_PARAM_LISTENER_LOCAL_ADDRESS);
-        LocalEndPoint = MsQuicHelpers.QuicAddrToIPEndPoint(&address, options.ListenEndPoint.AddressFamily);
+        _localEndPoint = QuicAddrToIPEndPoint(&address, options.ListenEndPoint.AddressFamily);
     }
 
     /// <summary>
@@ -169,7 +179,7 @@ public sealed partial class QuicListener : IAsyncDisposable
     /// </remarks>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A task that will contain a fully connected <see cref="QuicConnection" /> which successfully finished the handshake and is ready to be used.</returns>
-    public async ValueTask<QuicConnection> AcceptConnectionAsync(CancellationToken cancellationToken = default)
+    public virtual async ValueTask<QuicConnection> AcceptConnectionAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
 
@@ -357,7 +367,7 @@ public sealed partial class QuicListener : IAsyncDisposable
     /// Stops listening for new connections and releases all resources associated with the listener.
     /// </summary>
     /// <returns>A task that represents the asynchronous dispose operation.</returns>
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {

@@ -19,16 +19,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Channels;
-using System.Diagnostics.CodeAnalysis;
 
 #pragma warning disable IDE0060
 
 namespace System.Net.Quic.Implementations.Managed
 {
-    public sealed partial class ManagedQuicConnection : IAsyncDisposable
+    public sealed partial class ManagedQuicConnection : QuicConnection, IAsyncDisposable
     {
-        public static bool IsSupported => true;
-        public static async ValueTask<ManagedQuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
+        public static new bool IsSupported => true;
+        public static new async ValueTask<ManagedQuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
         {
             var connection = new ManagedQuicConnection(options, TlsFactory.Default);
             await connection.ConnectAsync(cancellationToken).ConfigureAwait(false);
@@ -238,6 +237,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         // client constructor
         internal ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)
+            : base(true)
         {
             IsServer = false;
             _remoteEndpoint = options.RemoteEndPoint!;
@@ -266,6 +266,7 @@ namespace System.Net.Quic.Implementations.Managed
         // server constructor
         internal ManagedQuicConnection(QuicServerConnectionOptions options, QuicConnectionContext socketContext,
             EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
+            : base(true)
         {
             IsServer = true;
             _socketContext = socketContext;
@@ -639,7 +640,7 @@ namespace System.Net.Quic.Implementations.Managed
             return _closeTcs.GetTask();
         }
 
-        public ValueTask DisposeAsync()
+        public override ValueTask DisposeAsync()
         {
             return DisposeAsync((long)TransportErrorCode.NoError);
         }
@@ -711,10 +712,11 @@ namespace System.Net.Quic.Implementations.Managed
         #region Public API
 
 
-        public IPEndPoint LocalEndPoint => _socketContext.LocalEndPoint;
+        public override IPEndPoint LocalEndPoint => _socketContext.LocalEndPoint;
 
         // TODO-RZ: create a defensive copy of the endpoint
-        public EndPoint RemoteEndPoint => _remoteEndpoint;
+        // TODO: get the IP endpoint from the connected socket, not from input options as it might be DNS endpoint that needs to be resolved
+        public override IPEndPoint RemoteEndPoint => (IPEndPoint)_remoteEndpoint;
 
 #pragma warning disable IDE0060 // Remove unused parameter
         internal ValueTask ConnectAsync(CancellationToken cancellationToken = default)
@@ -731,7 +733,7 @@ namespace System.Net.Quic.Implementations.Managed
             return _connectTcs.GetTask();
         }
 
-        public async ValueTask<ManagedQuicStream> OpenOutboundStreamAsync(QuicStreamType type, CancellationToken cancellationToken = default)
+        public override async ValueTask<QuicStream> OpenOutboundStreamAsync(QuicStreamType type, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfError();
@@ -739,7 +741,7 @@ namespace System.Net.Quic.Implementations.Managed
             return await OpenStream(type == QuicStreamType.Unidirectional, cancellationToken).ConfigureAwait(false);
         }
 
-        public async ValueTask<ManagedQuicStream> AcceptInboundStreamAsync(CancellationToken cancellationToken = default)
+        public override async ValueTask<QuicStream> AcceptInboundStreamAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfError();
@@ -754,7 +756,7 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        public SslApplicationProtocol NegotiatedApplicationProtocol
+        public override SslApplicationProtocol NegotiatedApplicationProtocol
         {
             get
             {
@@ -763,9 +765,9 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        public X509Certificate? RemoteCertificate => throw new NotImplementedException();
+        public override X509Certificate? RemoteCertificate => throw new NotImplementedException();
 
-        public ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
+        public override ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
         {
             return DisposeAsync(errorCode);
         }
