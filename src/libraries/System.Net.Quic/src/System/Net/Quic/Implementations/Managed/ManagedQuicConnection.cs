@@ -29,6 +29,8 @@ namespace System.Net.Quic.Implementations.Managed
         public static new bool IsSupported => true;
         public static new async ValueTask<QuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
         {
+            options.Validate(nameof(options));
+
             var connection = new ManagedQuicConnection(options, TlsFactory.Default);
             await connection.ConnectAsync(cancellationToken).ConfigureAwait(false);
             return connection;
