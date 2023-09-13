@@ -27,8 +27,6 @@ namespace System.Net.Quic.Implementations.Managed
         {
             options.Validate(nameof(options));
 
-            var listenEndPoint = options.ListenEndPoint ?? new IPEndPoint(IPAddress.Any, 0);
-
             var channel = Channel.CreateBounded<ManagedQuicConnection>(new BoundedChannelOptions(options.ListenBacklog)
             {
                 SingleReader = true,
@@ -37,11 +35,11 @@ namespace System.Net.Quic.Implementations.Managed
             });
 
             _acceptQueue = channel.Reader;
-            _socketContext = new QuicServerSocketContext(listenEndPoint, options, channel.Writer, TlsFactory.Default);
+            _socketContext = new QuicServerSocketContext(options.ListenEndPoint, options, channel.Writer, TlsFactory.Default);
             _socketContext.Start();
         }
 
-        public IPEndPoint ListenEndPoint => _socketContext.LocalEndPoint;
+        public override IPEndPoint LocalEndPoint => _socketContext.LocalEndPoint;
 
         public override async ValueTask<QuicConnection> AcceptConnectionAsync(CancellationToken cancellationToken = default)
         {
