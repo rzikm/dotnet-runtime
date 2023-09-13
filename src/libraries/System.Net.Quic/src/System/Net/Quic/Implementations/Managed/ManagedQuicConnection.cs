@@ -27,11 +27,13 @@ namespace System.Net.Quic.Implementations.Managed
     public sealed partial class ManagedQuicConnection : QuicConnection, IAsyncDisposable
     {
         public static new bool IsSupported => true;
-        public static new ValueTask<QuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
+        public static new async ValueTask<QuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
         {
             options.Validate(nameof(options));
 
-            return ValueTask.FromResult((QuicConnection)new ManagedQuicConnection(options, TlsFactory.Default));
+            var connection = new ManagedQuicConnection(options, TlsFactory.Default);
+            await connection.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            return connection;
         }
 
         // This limit should ensure that if we can fit at least an ack frame into the packet,
