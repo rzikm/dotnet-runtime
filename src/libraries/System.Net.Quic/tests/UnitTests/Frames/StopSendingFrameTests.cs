@@ -31,7 +31,7 @@ namespace System.Net.Quic.Tests.Frames
 
             var frame = Send1RttWithFrame<ResetStreamFrame>(Server, Client);
 
-            Assert.Equal(stream.StreamId, frame.StreamId);
+            Assert.Equal(stream.Id, frame.StreamId);
             Assert.Equal(errorCode, frame.ApplicationErrorCode);
             Assert.Equal(0, frame.FinalSize);
         }
@@ -54,10 +54,10 @@ namespace System.Net.Quic.Tests.Frames
 
             CloseConnectionCommon(new StopSendingFrame()
                 {
-                    StreamId = stream.StreamId,
+                    StreamId = stream.Id,
                     ApplicationErrorCode = 14
                 },
-                TransportErrorCode.StreamStateError, QuicError.StreamNotWritable);
+                TransportErrorCode.StreamStateError, QuicTransportError.StreamNotWritable);
         }
 
         [Fact]
@@ -69,7 +69,7 @@ namespace System.Net.Quic.Tests.Frames
                     StreamId = StreamHelpers.ComposeStreamId(StreamType.ServerInitiatedBidirectional, 0),
                     ApplicationErrorCode = 14
                 },
-                TransportErrorCode.StreamStateError, QuicError.StreamNotCreated);
+                TransportErrorCode.StreamStateError, QuicTransportError.StreamNotCreated);
         }
 
         [Fact]
@@ -78,10 +78,11 @@ namespace System.Net.Quic.Tests.Frames
             CloseConnectionCommon(
                 new StopSendingFrame()
                 {
-                    StreamId = StreamHelpers.ComposeStreamId(StreamType.ClientInitiatedBidirectional, ListenerOptions.MaxBidirectionalStreams + 1),
+                    // TODO: value of streamId based on listener options
+                    StreamId = StreamHelpers.ComposeStreamId(StreamType.ClientInitiatedBidirectional, int.MaxValue),
                     ApplicationErrorCode = 14
                 },
-                TransportErrorCode.StreamLimitError, QuicError.StreamsLimitViolated);
+                TransportErrorCode.StreamLimitError, QuicTransportError.StreamsLimitViolated);
         }
 
         [Fact]

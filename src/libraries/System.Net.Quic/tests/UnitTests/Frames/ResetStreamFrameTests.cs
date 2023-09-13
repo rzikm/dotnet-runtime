@@ -31,13 +31,13 @@ namespace System.Net.Quic.Tests.Frames
                 packet.Frames.Add(new ResetStreamFrame()
                 {
                     FinalSize = 0,
-                    StreamId = stream.StreamId,
+                    StreamId = stream.Id,
                     ApplicationErrorCode = errorCode
                 });
             });
 
-            var exception = Assert.Throws<QuicStreamAbortedException>(() => stream.Read(Span<byte>.Empty));
-            Assert.Equal(errorCode, exception.ErrorCode);
+            var exception = AssertThrowsQuicException(QuicError.StreamAborted, () => stream.Read(Span<byte>.Empty));
+            Assert.Equal(errorCode, exception.ApplicationErrorCode);
         }
 
         private void CloseConnectionCommon(ResetStreamFrame frame, TransportErrorCode errorCode, string reason)
@@ -59,7 +59,7 @@ namespace System.Net.Quic.Tests.Frames
                     StreamId = StreamHelpers.ComposeStreamId(StreamType.ClientInitiatedUnidirectional, 0),
                     ApplicationErrorCode = 14
                 },
-                TransportErrorCode.StreamStateError, QuicError.StreamNotReadable);
+                TransportErrorCode.StreamStateError, QuicTransportError.StreamNotReadable);
         }
 
         [Fact]
@@ -67,10 +67,11 @@ namespace System.Net.Quic.Tests.Frames
         {
             CloseConnectionCommon(new ResetStreamFrame()
                 {
-                    StreamId = StreamHelpers.ComposeStreamId(StreamType.ServerInitiatedUnidirectional, ListenerOptions.MaxBidirectionalStreams + 1),
+                    // TODO: value of streamId based on listener options
+                    StreamId = StreamHelpers.ComposeStreamId(StreamType.ServerInitiatedUnidirectional, int.MaxValue),
                     ApplicationErrorCode = 14
                 },
-                TransportErrorCode.StreamLimitError, QuicError.StreamsLimitViolated);
+                TransportErrorCode.StreamLimitError, QuicTransportError.StreamsLimitViolated);
         }
 
         [Fact]

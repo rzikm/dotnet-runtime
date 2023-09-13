@@ -26,6 +26,14 @@ namespace System.Net.Quic.Implementations.Managed
 {
     public sealed partial class ManagedQuicConnection : QuicConnection, IAsyncDisposable
     {
+        public static new bool IsSupported => true;
+        public static new async ValueTask<ManagedQuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
+        {
+            var connection = new ManagedQuicConnection(options, TlsFactory.Default);
+            await connection.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            return connection;
+        }
+
         // This limit should ensure that if we can fit at least an ack frame into the packet,
         private const int RequiredAllowanceForSending = 2 * ConnectionId.MaximumLength + 40;
 
@@ -68,9 +76,9 @@ namespace System.Net.Quic.Implementations.Managed
         ///     If true, the connection is in closing or draining state and will be considered close at
         ///     <see cref="_closingPeriodEndTimestamp"/> at the latest.
         /// </summary>
-        private bool IsClosing => _closingPeriodEndTimestamp != null;
+        internal bool IsClosing => _closingPeriodEndTimestamp != null;
 
-        private bool Connected => HandshakeConfirmed;
+        internal bool Connected => HandshakeConfirmed;
 
         /// <summary>
         ///     Timestamp when the connection close will be initiated due to lack of packets from peer.
@@ -226,10 +234,6 @@ namespace System.Net.Quic.Implementations.Managed
         ///     Unsafe access to the <see cref="RemoteEndPoint"/> field. Does not create a defensive copy!
         /// </summary>
         internal EndPoint UnsafeRemoteEndPoint => _remoteEndpoint;
-
-        public ManagedQuicConnection(QuicClientConnectionOptions options) : this(options, TlsFactory.Default)
-        {
-        }
 
         // client constructor
         internal ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)

@@ -39,7 +39,7 @@ namespace System.Net.Quic.Tests
 
                 initial.ShouldHaveConnectionClose(
                     TransportErrorCode.ProtocolViolation,
-                    QuicError.InitialPacketTooShort);
+                    QuicTransportError.InitialPacketTooShort);
             });
         }
 
@@ -184,7 +184,7 @@ namespace System.Net.Quic.Tests
             var packet = (CommonPacket)SendFlight(Client, Server).Packets[0];
             packet.ShouldHaveConnectionClose(
                 TransportErrorCode.ProtocolViolation,
-                QuicError.UnexpectedToken);
+                QuicTransportError.UnexpectedToken);
         }
 
         [Fact]
@@ -198,7 +198,7 @@ namespace System.Net.Quic.Tests
             InterceptInitial(Server, Client, initial =>
             {
                 initial.ShouldHaveConnectionClose(TransportErrorCode.ProtocolViolation,
-                    QuicError.InvalidReservedBits);
+                    QuicTransportError.InvalidReservedBits);
             });
         }
     }

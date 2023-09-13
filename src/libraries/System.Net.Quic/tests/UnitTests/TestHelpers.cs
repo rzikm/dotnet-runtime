@@ -1,12 +1,11 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-#nullable enable
-
 using System.Linq;
 using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Frames;
 using System.Net.Quic.Tests.Harness;
+using System.Threading.Tasks;
 using Xunit;
 using ConnectionCloseFrame = System.Net.Quic.Tests.Harness.ConnectionCloseFrame;
 
@@ -37,6 +36,24 @@ namespace System.Net.Quic.Tests
                 Assert.Equal(reason, frame.ReasonPhrase);
             // if (frameType != FrameType.Padding)
                 Assert.Equal(frameType, frame.ErrorFrameType);
+        }
+
+    }
+
+    internal static class AssertHelpers
+    {
+        internal static async Task<QuicException> ThrowsQuicExceptionAsync(QuicError expectedError, Func<Task> action)
+        {
+            var ex = await Assert.ThrowsAsync<QuicException>(action);
+            Assert.Equal(expectedError, ex.QuicError);
+            return ex;
+        }
+
+        internal static QuicException ThrowsQuicException(QuicError expectedError, Action action)
+        {
+            var ex = Assert.Throws<QuicException>(action);
+            Assert.Equal(expectedError, ex.QuicError);
+            return ex;
         }
     }
 }
