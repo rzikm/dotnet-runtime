@@ -11,12 +11,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
+using System.Net.Quic.Implementations.Managed;
 
 namespace System.Net.Quic.Tests
 {
     [Collection(nameof(DisableParallelization))]
     [ConditionalClass(typeof(QuicTestBase), nameof(QuicTestBase.IsSupported))]
-    public sealed class QuicStreamConformanceTests : ConnectedStreamConformanceTests
+    public class QuicStreamConformanceTests : ConnectedStreamConformanceTests
     {
         protected override bool UsableAfterCanceledReads => false;
         protected override bool BlocksOnZeroByteReads => true;
@@ -24,6 +25,13 @@ namespace System.Net.Quic.Tests
 
         public readonly X509Certificate2 ServerCertificate = System.Net.Test.Common.Configuration.Certificates.GetServerCertificate();
         public ITestOutputHelper _output;
+        public bool _managed;
+
+        public QuicStreamConformanceTests(ITestOutputHelper output, bool managed = false)
+        {
+            _output = output;
+            _managed = managed;
+        }
 
         protected override void Dispose(bool disposing)
         {
@@ -33,21 +41,6 @@ namespace System.Net.Quic.Tests
             }
             base.Dispose(disposing);
         }
-    [ConditionalClass(typeof(QuicTestBase<ManagedQuicProviderFactory>), nameof(QuicTestBase<ManagedQuicProviderFactory>.IsSupported))]
-    [Collection(nameof(DisableParallelization))]
-    public sealed class ManagedQuicQuicStreamConformanceTests : QuicStreamConformanceTests
-    {
-        protected override QuicImplementationProvider Provider => new ManagedQuicProviderFactory().GetProvider();
-        protected override bool UsableAfterCanceledReads => false;
-        protected override bool BlocksOnZeroByteReads => true;
-        protected override bool CanTimeout => true;
-
-        public ManagedQuicQuicStreamConformanceTests(ITestOutputHelper output)
-        {
-            _output = output;
-        }
-    }
-
 
         public bool RemoteCertificateValidationCallback(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
         {
@@ -75,7 +68,7 @@ namespace System.Net.Quic.Tests
 
         protected override async Task<StreamPair> CreateConnectedStreamsAsync()
         {
-            var listener = await QuicListener.ListenAsync(new QuicListenerOptions()
+            var listenerOptions = new QuicListenerOptions()
             {
                 ListenEndPoint = new IPEndPoint(IPAddress.Loopback, 0),
                 ApplicationProtocols = new List<SslApplicationProtocol>() { new SslApplicationProtocol("quictest") },
@@ -85,7 +78,8 @@ namespace System.Net.Quic.Tests
                     DefaultCloseErrorCode = QuicTestBase.DefaultCloseErrorCodeServer,
                     ServerAuthenticationOptions = GetSslServerAuthenticationOptions()
                 })
-            });
+            };
+            var listener = _managed ? await ManagedQuicListener.ListenAsync(listenerOptions) : await QuicListener.ListenAsync(listenerOptions);
 
             byte[] buffer = new byte[1] { 42 };
             QuicConnection connection1 = null, connection2 = null;
@@ -103,13 +97,14 @@ namespace System.Net.Quic.Tests
                     {
                         try
                         {
-                            connection2 = await QuicConnection.ConnectAsync(new QuicClientConnectionOptions()
+                            var connectionOptions = new QuicClientConnectionOptions()
                             {
                                 DefaultStreamErrorCode = QuicTestBase.DefaultStreamErrorCodeClient,
                                 DefaultCloseErrorCode = QuicTestBase.DefaultCloseErrorCodeClient,
                                 RemoteEndPoint = listener.LocalEndPoint,
                                 ClientAuthenticationOptions = GetSslClientAuthenticationOptions()
-                            });
+                            };
+                            connection2 = _managed ? await ManagedQuicConnection.ConnectAsync(connectionOptions) : await QuicConnection.ConnectAsync(connectionOptions);
                             stream2 = await connection2.OpenOutboundStreamAsync(QuicStreamType.Bidirectional);
                             // OpenBidirectionalStream only allocates ID. We will force stream opening
                             // by Writing there and receiving data on the other side.
@@ -168,5 +163,12 @@ namespace System.Net.Quic.Tests
                 }
             }
         }
+    }
+
+    [Collection(nameof(DisableParallelization))]
+    public sealed class ManagedQuicQuicStreamConformanceTests : QuicStreamConformanceTests
+    {
+        public ManagedQuicQuicStreamConformanceTests(ITestOutputHelper output) : base(output, managed: true)
+        { }
     }
 }

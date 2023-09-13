@@ -16,12 +16,12 @@ namespace System.Net.Quic.Tests
 
     [Collection(nameof(DisableParallelization))]
     [ConditionalClass(typeof(QuicTestBase), nameof(QuicTestBase.IsSupported))]
-    public sealed class QuicConnectionTests : QuicTestBase
+    public class QuicConnectionTests : QuicTestBase
     {
         const int ExpectedErrorCode = 1234;
         public static IEnumerable<object[]> LocalAddresses = Configuration.Sockets.LocalAddresses();
 
-        public QuicConnectionTests(ITestOutputHelper output) : base(output) { }
+        public QuicConnectionTests(ITestOutputHelper output, bool managed = false) : base(output, managed) { }
 
         [Theory]
         [MemberData(nameof(LocalAddresses))]
@@ -426,9 +426,8 @@ namespace System.Net.Quic.Tests
         }
     }
 
-    [ConditionalClass(typeof(QuicTestBase<ManagedQuicProviderFactory>), nameof(QuicTestBase<ManagedQuicProviderFactory>.IsSupported))]
-    public sealed class QuicConnectionTests_ManagedQuicProvider : QuicConnectionTests<ManagedQuicProviderFactory>
+    public sealed class ManagedQuicConnectionTests : QuicConnectionTests
     {
-        public QuicConnectionTests_ManagedQuicProvider(ITestOutputHelper output) : base(output) { }
+        public ManagedQuicConnectionTests(ITestOutputHelper output) : base(output, managed: true) { }
     }
 }

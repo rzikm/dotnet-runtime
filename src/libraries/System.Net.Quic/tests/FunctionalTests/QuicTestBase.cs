@@ -15,6 +15,7 @@ using System.Diagnostics.Tracing;
 using System.Net.Sockets;
 using System.Reflection;
 using Microsoft.Quic;
+using System.Net.Quic.Implementations.Managed;
 
 namespace System.Net.Quic.Tests
 {
@@ -39,6 +40,7 @@ namespace System.Net.Quic.Tests
         public readonly X509Certificate2 ClientCertificate = System.Net.Test.Common.Configuration.Certificates.GetClientCertificate();
 
         public ITestOutputHelper _output;
+        public bool _managed;
         public const int PassingTestTimeoutMilliseconds = 4 * 60 * 1000;
         public static TimeSpan PassingTestTimeout => TimeSpan.FromMilliseconds(PassingTestTimeoutMilliseconds);
 
@@ -64,9 +66,10 @@ namespace System.Net.Quic.Tests
             }
         }
 
-        public unsafe QuicTestBase(ITestOutputHelper output)
+        public unsafe QuicTestBase(ITestOutputHelper output, bool managed = false)
         {
             _output = output;
+            _managed = managed;
         }
 
         public void Dispose()
@@ -137,7 +140,7 @@ namespace System.Net.Quic.Tests
 
         internal ValueTask<QuicConnection> CreateQuicConnection(QuicClientConnectionOptions clientOptions)
         {
-            return QuicConnection.ConnectAsync(clientOptions);
+            return _managed ? ManagedQuicConnection.ConnectAsync(clientOptions) : QuicConnection.ConnectAsync(clientOptions);
         }
 
         internal QuicListenerOptions CreateQuicListenerOptions(IPAddress address = null)
@@ -168,7 +171,7 @@ namespace System.Net.Quic.Tests
             return CreateQuicListener(options);
         }
 
-        internal ValueTask<QuicListener> CreateQuicListener(QuicListenerOptions options) => QuicListener.ListenAsync(options);
+        internal ValueTask<QuicListener> CreateQuicListener(QuicListenerOptions options) => _managed ? ManagedQuicListener.ListenAsync(options) : QuicListener.ListenAsync(options);
 
         internal Task<(QuicConnection, QuicConnection)> CreateConnectedQuicConnection(QuicListener listener) => CreateConnectedQuicConnection(null, listener);
         internal async Task<(QuicConnection, QuicConnection)> CreateConnectedQuicConnection(QuicClientConnectionOptions? clientOptions, QuicListenerOptions listenerOptions)
@@ -410,11 +413,5 @@ namespace System.Net.Quic.Tests
                 return false;
             }
         }
-    }
-
-    public sealed class ManagedQuicProviderFactory : IQuicImplProviderFactory
-    {
-        // Use MockTls due to lack of modified OpenSSL
-        public QuicImplementationProvider GetProvider() => QuicImplementationProviders.ManagedMockTls;
     }
 }
