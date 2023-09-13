@@ -9,6 +9,7 @@ using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Headers;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 {
@@ -25,7 +26,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         private bool _started;
 
         private readonly Socket _socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
-        private readonly SocketAsyncEventArgs _socketReceiveEventArgs = new SocketAsyncEventArgs();
 
         protected QuicSocketContext(EndPoint? localEndPoint, EndPoint? remoteEndPoint, bool isServer)
         {
@@ -37,8 +37,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             _socketTaskCts = new CancellationTokenSource();
 
             SetupSocket(localEndPoint, remoteEndPoint);
-
-            _socketReceiveEventArgs.Completed += (sender, args) => OnReceiveFinished(args);
         }
 
         private void SetupSocket(EndPoint? localEndPoint, EndPoint? remoteEndPoint)
@@ -82,37 +80,35 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
             _started = true;
 
-            var args = _socketReceiveEventArgs;
-            while (!ReceiveFromAsync(args))
-            {
-                // this should not really happen, as the socket should be just opened, but we want to be sure and don't
-                // miss any incoming datagrams
-                DoReceive(ExtractDatagram(args));
-            }
+            _ = Task.Run(async () => {
+                while (!_socketTaskCts.IsCancellationRequested)
+                {
+                    // use fresh buffer for each receive, since the previous one is still being processed
+                    var buffer = ArrayPool.Rent(1200);
+
+                    DatagramInfo datagram;
+
+                    if (_remoteEndPoint != null)
+                    {
+                        var read = await _socket.ReceiveAsync(buffer).ConfigureAwait(false);
+                        datagram = new DatagramInfo(buffer, read, _remoteEndPoint);
+                    }
+                    else
+                    {
+                        var res = await _socket.ReceiveFromAsync(buffer, _localEndPoint!).ConfigureAwait(false);
+                        datagram = new DatagramInfo(buffer, res.ReceivedBytes, res.RemoteEndPoint);
+                    }
+
+                    // process only datagrams big enough to contain valid QUIC packets
+                    if (datagram.Length >= QuicConstants.MinimumPacketSize)
+                    {
+                        OnDatagramReceived(datagram);
+                    }
+                }
+            });
         }
 
-        private static DatagramInfo ExtractDatagram(SocketAsyncEventArgs args)
-        {
-            return new DatagramInfo(args.Buffer!, args.SocketError == SocketError.Success ? args.BytesTransferred : 0,
-                args.RemoteEndPoint!);
-        }
-
-        private void OnReceiveFinished(SocketAsyncEventArgs args)
-        {
-            if (_socketTaskCts.IsCancellationRequested)
-                return;
-
-            bool pending;
-            do
-            {
-                DatagramInfo datagram = ExtractDatagram(args);
-
-                // immediately issue another async receive, this achieves the leader-follower thread pattern
-                pending = !ReceiveFromAsync(args);
-
-                DoReceive(datagram);
-            } while (pending);
-        }
+        internal ArrayPool<byte> ArrayPool { get; } = ArrayPool<byte>.Shared;
 
         protected void SignalStop()
         {
@@ -122,28 +118,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
         protected abstract void OnDatagramReceived(in DatagramInfo datagram);
 
-        private void DoReceive(in DatagramInfo datagram)
-        {
-            // process only datagrams big enough to contain valid QUIC packets
-            if (datagram.Length < QuicConstants.MinimumPacketSize)
-            {
-                return;
-            }
-
-            OnDatagramReceived(datagram);
-        }
-
-        private void DoReceive(byte[] datagram, int length, EndPoint sender)
-        {
-            // process only datagrams big enough to contain valid QUIC packets
-            if (datagram.Length < QuicConstants.MinimumPacketSize)
-            {
-                return;
-            }
-
-            OnDatagramReceived(new DatagramInfo(datagram, length, sender));
-        }
-
         /// <summary>
         ///     Called when a connections <see cref="ManagedQuicConnection.ConnectionState"/> changes.
         /// </summary>
@@ -152,50 +126,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         /// <returns>True if the processing of the connection should be stopped.</returns>
         protected internal abstract bool
             OnConnectionStateChanged(ManagedQuicConnection connection, QuicConnectionState newState);
-
-        protected sealed class ReceiveOperationAsyncSocketArgs : SocketAsyncEventArgs
-        {
-            public ResettableCompletionSource<SocketReceiveFromResult> CompletionSource { get; } =
-                new ResettableCompletionSource<SocketReceiveFromResult>();
-
-            protected override void OnCompleted(SocketAsyncEventArgs e)
-            {
-                CompletionSource.Complete(
-                    new SocketReceiveFromResult()
-                    {
-                        ReceivedBytes = e.SocketError == SocketError.Success ? e.BytesTransferred : 0,
-                        RemoteEndPoint = e.RemoteEndPoint!
-                    });
-            }
-        }
-
-        internal ArrayPool<byte> ArrayPool { get; } = ArrayPool<byte>.Shared;
-
-        private bool ReceiveFromAsync(SocketAsyncEventArgs args)
-        {
-            if (_socketTaskCts.IsCancellationRequested)
-                return true;
-
-            // we need a new buffer, because the one which was received into last time may be still read from by the
-            // connection
-            var buffer = ArrayPool.Rent(QuicConstants.MaximumAllowedDatagramSize);
-            args.SetBuffer(buffer, 0, buffer.Length);
-
-            if (_remoteEndPoint != null)
-            {
-                // we are using connected sockets -> use Receive(...). We also have to set the expected
-                // receiver address so that the receiving code later uses it
-
-                args.RemoteEndPoint = _remoteEndPoint!;
-                return _socket.ReceiveAsync(args);
-            }
-
-            Debug.Assert(_isServer);
-            Debug.Assert(_localEndPoint != null);
-
-            args.RemoteEndPoint = _localEndPoint!;
-            return _socket.ReceiveFromAsync(args);
-        }
 
         protected abstract void OnException(Exception e);
 
