@@ -156,7 +156,7 @@ namespace System.Net.Quic.Implementations.Managed
     {
         internal ManagedQuicListener() : base (default(bool)) { }
         public static new bool IsSupported { get { throw null; } }
-        public System.Net.IPEndPoint ListenEndPoint { get { throw null; } }
+        public override System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
         public override System.Threading.Tasks.ValueTask<System.Net.Quic.QuicConnection> AcceptConnectionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public override System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
         public static new System.Threading.Tasks.ValueTask<System.Net.Quic.QuicListener> ListenAsync(System.Net.Quic.QuicListenerOptions options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
