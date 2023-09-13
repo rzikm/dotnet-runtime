@@ -27,12 +27,20 @@ namespace System.Net.Quic.Implementations.Managed
     public sealed partial class ManagedQuicConnection : QuicConnection, IAsyncDisposable
     {
         public static new bool IsSupported => true;
+
+#pragma warning disable IDE0060 // Remove unused parameter
         public static new async ValueTask<QuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
+#pragma warning restore IDE0060 // Remove unused parameter
         {
             options.Validate(nameof(options));
 
             var connection = new ManagedQuicConnection(options, TlsFactory.Default);
-            await connection.ConnectAsync(cancellationToken).ConfigureAwait(false);
+
+            connection._socketContext.WakeUp();
+            connection._socketContext.Start();
+
+            await connection._connectTcs.GetTask().ConfigureAwait(false);
+
             return connection;
         }
 
@@ -723,21 +731,6 @@ namespace System.Net.Quic.Implementations.Managed
         // TODO-RZ: create a defensive copy of the endpoint
         // TODO: get the IP endpoint from the connected socket, not from input options as it might be DNS endpoint that needs to be resolved
         public override IPEndPoint RemoteEndPoint => (IPEndPoint)_remoteEndpoint;
-
-#pragma warning disable IDE0060 // Remove unused parameter
-        internal ValueTask ConnectAsync(CancellationToken cancellationToken = default)
-#pragma warning restore IDE0060 // Remove unused parameter
-        {
-            ThrowIfDisposed();
-            ThrowIfError();
-
-            if (Connected) return default;
-
-            _socketContext.WakeUp();
-            _socketContext.Start();
-
-            return _connectTcs.GetTask();
-        }
 
         public override async ValueTask<QuicStream> OpenOutboundStreamAsync(QuicStreamType type, CancellationToken cancellationToken = default)
         {
