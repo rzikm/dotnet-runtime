@@ -115,6 +115,8 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
+        private readonly bool _canAccept;
+
         /// <summary>
         ///     QUIC transport parameters used for this endpoint.
         /// </summary>
@@ -239,6 +241,7 @@ namespace System.Net.Quic.Implementations.Managed
         internal ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)
             : base(true)
         {
+            _canAccept = options.MaxInboundUnidirectionalStreams > 0 || options.MaxInboundBidirectionalStreams > 0;
             IsServer = false;
             _remoteEndpoint = options.RemoteEndPoint!;
 
@@ -268,6 +271,7 @@ namespace System.Net.Quic.Implementations.Managed
             EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
             : base(true)
         {
+            _canAccept = options.MaxInboundUnidirectionalStreams > 0 || options.MaxInboundBidirectionalStreams > 0;
             IsServer = true;
             _socketContext = socketContext;
             _remoteEndpoint = remoteEndpoint;
@@ -745,6 +749,11 @@ namespace System.Net.Quic.Implementations.Managed
         {
             ThrowIfDisposed();
             ThrowIfError();
+
+            if (!_canAccept)
+            {
+                throw new InvalidOperationException(SR.net_quic_accept_not_allowed);
+            }
 
             try
             {
