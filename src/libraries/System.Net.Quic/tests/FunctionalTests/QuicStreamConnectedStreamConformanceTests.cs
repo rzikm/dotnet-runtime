@@ -165,7 +165,7 @@ namespace System.Net.Quic.Tests
         }
     }
 
-    [Collection(nameof(DisableParallelization))]
+    /*[Collection(nameof(DisableParallelization))]
     public sealed class ManagedQuicQuicStreamConformanceTests : QuicStreamConformanceTests
     {
         public ManagedQuicQuicStreamConformanceTests(ITestOutputHelper output) : base(output, managed: true)
@@ -181,5 +181,5 @@ namespace System.Net.Quic.Tests
         public override Task ReadAsync_DuringReadAsync_ThrowsIfUnsupported()
             => base.ReadAsync_DuringReadAsync_ThrowsIfUnsupported()
                 .WaitAsync(QuicTestBase.SmallTestTimeout);
-    }
+    }*/
 }

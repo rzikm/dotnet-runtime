@@ -256,11 +256,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             if (_toBeQueuedChunk.Length == 0)
                 return;
 
-            _toSendChannel.Writer.TryWrite(_toBeQueuedChunk);
-            Interlocked.Add(ref _bytesInChannel, _toBeQueuedChunk.Length);
-
+            var tmp = _toBeQueuedChunk;
             var buffer = QuicBufferPool.Rent();
             _toBeQueuedChunk = new StreamChunk(WrittenBytes, Memory<byte>.Empty, buffer);
+
+            _toSendChannel.Writer.TryWrite(tmp);
+            Interlocked.Add(ref _bytesInChannel, tmp.Length);
         }
 
         /// <summary>
@@ -325,6 +326,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             while (reader.TryRead(out var chunk))
             {
                 Debug.Assert(_dequedBytes == chunk.StreamOffset);
+                Debug.Assert(chunk.Length > 0);
+
                 _pending.Add(chunk.StreamOffset, chunk.StreamOffset + chunk.Length - 1);
                 _chunks.Add(chunk);
                 _dequedBytes += chunk.Length;
