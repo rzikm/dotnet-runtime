@@ -155,7 +155,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             return span;
         }
 
-        private ReadOnlySpan<byte> PeekRestOfBuffer()
+        internal ReadOnlySpan<byte> PeekRestOfBuffer()
         {
             return _buffer.Span.Slice(_consumed);
         }

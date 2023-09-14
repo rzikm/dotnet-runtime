@@ -255,6 +255,7 @@ namespace System.Net.Quic.Implementations.Managed
             IsServer = false;
             _remoteEndpoint = options.RemoteEndPoint!;
 
+            _targetHostName = options.ClientAuthenticationOptions!.TargetHost;
             _socketContext = new SingleConnectionSocketContext(options.LocalEndPoint, _remoteEndpoint, this)
                 .ConnectionContext;
             _localTransportParameters = TransportParameters.FromConnectionOptions(options);
@@ -330,6 +331,14 @@ namespace System.Net.Quic.Implementations.Managed
         ///     Connection ID used by the peer to identify packets for this connection.
         /// </summary>
         internal ConnectionId? DestinationConnectionId { get; private set; }
+
+        internal string? _targetHostName;
+
+        /// <summary>
+        /// Gets the name of the server the client is trying to connect to. That name is used for server certificate validation. It can be a DNS name or an IP address.
+        /// </summary>
+        /// <returns>The name of the server the client is trying to connect to.</returns>
+        public override string TargetHostName => _targetHostName ?? "";
 
         /// <summary>
         ///     Sets new socket context that will from now on service the connection.
@@ -769,7 +778,9 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        public override X509Certificate? RemoteCertificate => throw new NotImplementedException();
+        internal X509Certificate2? _remoteCertificate;
+
+        public override X509Certificate? RemoteCertificate => _remoteCertificate;
 
         public override ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
         {
