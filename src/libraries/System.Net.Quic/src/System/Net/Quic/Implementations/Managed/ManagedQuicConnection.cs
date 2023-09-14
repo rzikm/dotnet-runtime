@@ -641,27 +641,9 @@ namespace System.Net.Quic.Implementations.Managed
             return ProcessPacketResult.Error;
         }
 
-        internal ValueTask DisposeAsync(long errorCode)
+        public override async ValueTask DisposeAsync()
         {
-            if (_disposed || _closeTcs.IsSet)
-            {
-                return default;
-            }
-
-            if (!Connected)
-            {
-                // TODO: is this necessary?
-                // abandon connection attempt
-                _connectTcs.TryCompleteException(new QuicException(QuicError.ConnectionAborted, errorCode, "Abandon connection attempt"));
-                _closeTcs.TryComplete();
-                return default;
-            }
-
-            // abort all pending stream operations on our side
-            foreach (var stream in _streams.AllStreams)
-            {
-                stream.OnConnectionClosed(MakeOperationAbortedException());
-            }
+            await CloseAsync(_connectionOptions.DefaultCloseErrorCode).ConfigureAwait(false);
 
             // Dispose remote certificate only if it hasn't been accessed via getter, in which case the accessing code becomes the owner of the certificate lifetime.
             if (!_remoteCertificateExposed)
@@ -669,17 +651,8 @@ namespace System.Net.Quic.Implementations.Managed
                 _remoteCertificate?.Dispose();
             }
 
-            _outboundError = new QuicTransportError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
             _disposed = true;
             Tls.Dispose();
-            _socketContext.WakeUp();
-
-            return _closeTcs.GetTask();
-        }
-
-        public override ValueTask DisposeAsync()
-        {
-            return DisposeAsync(_connectionOptions.DefaultCloseErrorCode);
         }
 
         private void SetEncryptionSecrets(EncryptionLevel level, TlsCipherSuite algorithm,
@@ -813,7 +786,30 @@ namespace System.Net.Quic.Implementations.Managed
 
         public override ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
         {
-            return DisposeAsync(errorCode);
+            if (_disposed || _closeTcs.IsSet)
+            {
+                return default;
+            }
+
+            if (!Connected)
+            {
+                // TODO: is this necessary?
+                // abandon connection attempt
+                _connectTcs.TryCompleteException(new QuicException(QuicError.ConnectionAborted, errorCode, "Abandon connection attempt"));
+                _closeTcs.TryComplete();
+                return default;
+            }
+
+            // abort all pending stream operations on our side
+            foreach (var stream in _streams.AllStreams)
+            {
+                stream.OnConnectionClosed(MakeOperationAbortedException());
+            }
+
+            _outboundError = new QuicTransportError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
+            _socketContext.WakeUp();
+
+            return _closeTcs.GetTask();
         }
 
         #endregion
