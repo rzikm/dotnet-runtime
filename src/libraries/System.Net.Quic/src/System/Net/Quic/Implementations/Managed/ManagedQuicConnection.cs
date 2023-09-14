@@ -15,6 +15,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Streams;
 using System.Net.Quic.Implementations.Managed.Internal.Tracing;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
 using System.Net.Security;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
@@ -750,9 +751,11 @@ namespace System.Net.Quic.Implementations.Managed
             {
                 return await _streams.IncomingStreams.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (ChannelClosedException)
+            catch (ChannelClosedException ex) when (ex.InnerException is not null)
             {
-                throw MakeOperationAbortedException();
+                // rethrow the inner exception
+                ExceptionDispatchInfo.Throw(ex.InnerException);
+                throw;
             }
         }
 
@@ -807,6 +810,8 @@ namespace System.Net.Quic.Implementations.Managed
             }
 
             _outboundError = new QuicTransportError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
+
+            _streams.IncomingStreams.Writer.TryComplete(MakeOperationAbortedException());
             _socketContext.WakeUp();
 
             return _closeTcs.GetTask();
@@ -834,7 +839,7 @@ namespace System.Net.Quic.Implementations.Managed
                 else if (_outboundError.ErrorCode != TransportErrorCode.NoError)
                 {
                     // connection close initiated by us (transport)
-                    throw MakeConnectionAbortedException(_outboundError);
+                    throw new QuicException(QuicError.TransportError, (long)_outboundError.ErrorCode, _outboundError.ReasonPhrase ?? "Protocol Error");
                 }
             }
 
@@ -942,12 +947,9 @@ namespace System.Net.Quic.Implementations.Managed
             _connectTcs.TryComplete();
         }
 
-
-        private QuicException MakeOperationAbortedException()
+        private static QuicException MakeOperationAbortedException()
         {
-            return _inboundError != null
-                ? MakeConnectionAbortedException(_inboundError) // initiated by peer
-                : new QuicException(QuicError.OperationAborted, null, "Operation Aborted"); // initiated by us
+            return new QuicException(QuicError.OperationAborted, null, "Operation Aborted");
         }
 
         private static QuicException MakeConnectionAbortedException(QuicTransportError error)
