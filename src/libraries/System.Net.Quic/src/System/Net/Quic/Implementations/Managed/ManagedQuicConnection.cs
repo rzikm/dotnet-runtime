@@ -234,6 +234,8 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         private Exception? _socketContextException;
 
+        private QuicConnectionOptions _connectionOptions;
+
         /// <summary>
         ///     Requests sending PING frame to the peer, requiring the peer to send acknowledgement back.
         /// </summary>
@@ -251,6 +253,7 @@ namespace System.Net.Quic.Implementations.Managed
         internal ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)
             : base(true)
         {
+            _connectionOptions = options;
             _canAccept = options.MaxInboundUnidirectionalStreams > 0 || options.MaxInboundBidirectionalStreams > 0;
             IsServer = false;
             _remoteEndpoint = options.RemoteEndPoint!;
@@ -282,6 +285,7 @@ namespace System.Net.Quic.Implementations.Managed
             EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
             : base(true)
         {
+            _connectionOptions = options;
             _canAccept = options.MaxInboundUnidirectionalStreams > 0 || options.MaxInboundBidirectionalStreams > 0;
             IsServer = true;
             _socketContext = socketContext;
@@ -332,6 +336,10 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         internal ConnectionId? DestinationConnectionId { get; private set; }
 
+        /// <summary>
+        /// Gets the name of the server the client is trying to connect to. That name is used for server certificate validation. It can be a DNS name or an IP address.
+        /// </summary>
+        /// <returns>The name of the server the client is trying to connect to.</returns>
         internal string? _targetHostName;
 
         /// <summary>
@@ -655,6 +663,12 @@ namespace System.Net.Quic.Implementations.Managed
                 stream.OnConnectionClosed(MakeOperationAbortedException());
             }
 
+            // Dispose remote certificate only if it hasn't been accessed via getter, in which case the accessing code becomes the owner of the certificate lifetime.
+            if (!_remoteCertificateExposed)
+            {
+                _remoteCertificate?.Dispose();
+            }
+
             _outboundError = new QuicTransportError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
             _disposed = true;
             Tls.Dispose();
@@ -665,7 +679,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         public override ValueTask DisposeAsync()
         {
-            return DisposeAsync((long)TransportErrorCode.NoError);
+            return DisposeAsync(_connectionOptions.DefaultCloseErrorCode);
         }
 
         private void SetEncryptionSecrets(EncryptionLevel level, TlsCipherSuite algorithm,
@@ -778,9 +792,24 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
+        /// <summary>
+        /// Keeps track whether <see cref="RemoteCertificate"/> has been accessed so that we know whether to dispose the certificate or not.
+        /// </summary>
+        private bool _remoteCertificateExposed;
         internal X509Certificate2? _remoteCertificate;
 
-        public override X509Certificate? RemoteCertificate => _remoteCertificate;
+        /// <summary>
+        /// The certificate provided by the peer.
+        /// For an outbound/client connection will always have the peer's (server) certificate; for an inbound/server one, only if the connection requested and the peer (client) provided one.
+        /// </summary>
+        public override X509Certificate? RemoteCertificate
+        {
+            get
+            {
+                _remoteCertificateExposed = true;
+                return _remoteCertificate;
+            }
+        }
 
         public override ValueTask CloseAsync(long errorCode, CancellationToken cancellationToken = default)
         {
