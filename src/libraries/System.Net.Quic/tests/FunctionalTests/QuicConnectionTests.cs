@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.DotNet.XUnitExtensions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -314,11 +315,31 @@ namespace System.Net.Quic.Tests
                 _ => Task.CompletedTask);
         }
 
-        [Theory]
+        [Fact]
+        public async Task AcceptStreamAsync_ConnectionDisposed_Throws()
+        {
+            (QuicConnection clientConnection, QuicConnection serverConnection) = await CreateConnectedQuicConnection();
+
+            // One task issues before the disposal.
+            ValueTask<QuicStream> acceptTask1 = serverConnection.AcceptInboundStreamAsync();
+            await serverConnection.DisposeAsync();
+            // Another task issued after the disposal.
+            ValueTask<QuicStream> acceptTask2 = serverConnection.AcceptInboundStreamAsync();
+
+            var accept1Exception = await Assert.ThrowsAsync<ObjectDisposedException>(async () => await acceptTask1);
+            var accept2Exception = await Assert.ThrowsAsync<ObjectDisposedException>(async () => await acceptTask2);
+        }
+
+        [ConditionalTheory()]
         [InlineData(true)]
         [InlineData(false)]
         public async Task Connect_PeerCertificateDisposed(bool useGetter)
         {
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed implementation with does not support certificates with mock TLS.");
+            }
+
             await using QuicListener listener = await CreateQuicListener();
 
             QuicClientConnectionOptions clientOptions = CreateQuicClientOptions(listener.LocalEndPoint);

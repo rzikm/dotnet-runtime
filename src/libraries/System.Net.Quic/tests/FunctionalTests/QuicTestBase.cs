@@ -40,7 +40,8 @@ namespace System.Net.Quic.Tests
         public readonly X509Certificate2 ClientCertificate = System.Net.Test.Common.Configuration.Certificates.GetClientCertificate();
 
         public ITestOutputHelper _output;
-        public bool _managed;
+        private bool _managed;
+        public bool IsManaged => _managed;
         public const int PassingTestTimeoutMilliseconds = 4 * 60 * 1000;
         public static TimeSpan PassingTestTimeout => TimeSpan.FromMilliseconds(PassingTestTimeoutMilliseconds);
         public static TimeSpan SmallTestTimeout => TimeSpan.FromSeconds(10);
