@@ -333,11 +333,6 @@ namespace System.Net.Quic.Tests
         [InlineData(false)]
         public async Task Connect_PeerCertificateDisposed(bool useGetter)
         {
-            if (IsManaged)
-            {
-                throw new SkipTestException("Managed implementation with does not support certificates with mock TLS.");
-            }
-
             await using QuicListener listener = await CreateQuicListener();
 
             QuicClientConnectionOptions clientOptions = CreateQuicClientOptions(listener.LocalEndPoint);
