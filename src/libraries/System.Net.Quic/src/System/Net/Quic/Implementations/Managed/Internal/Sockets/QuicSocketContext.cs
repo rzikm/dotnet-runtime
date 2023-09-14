@@ -25,10 +25,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
         private bool _started;
 
-        private readonly Socket _socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+        private readonly Socket _socket;
 
         protected QuicSocketContext(EndPoint? localEndPoint, EndPoint? remoteEndPoint, bool isServer)
         {
+            _socket = new Socket((localEndPoint ?? remoteEndPoint)!.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
             _localEndPoint = localEndPoint;
             _remoteEndPoint = remoteEndPoint;
 
