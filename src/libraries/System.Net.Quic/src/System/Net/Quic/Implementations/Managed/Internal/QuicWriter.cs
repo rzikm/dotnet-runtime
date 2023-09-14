@@ -25,6 +25,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal
 
         internal int BytesAvailable => _buffer.Length - BytesWritten;
 
+        internal Span<byte> AvailableSpan => _buffer.Span.Slice(_written);
+
         internal Memory<byte> Buffer => _buffer;
 
         internal void Reset(Memory<byte> buffer, int offset = 0)
@@ -86,7 +88,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             return span;
         }
 
-        private void Advance(int bytes)
+        internal void Advance(int bytes)
         {
             _written += bytes;
         }
