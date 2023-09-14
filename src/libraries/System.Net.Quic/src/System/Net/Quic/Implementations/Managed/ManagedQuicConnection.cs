@@ -954,7 +954,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         private static QuicException MakeConnectionAbortedException(QuicTransportError error)
         {
-            return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, error.ReasonPhrase ?? "Connection aborted");
+            return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, $"Connection aborted: '{error.ReasonPhrase}'");
         }
 
         internal void OnSocketContextException(Exception e)

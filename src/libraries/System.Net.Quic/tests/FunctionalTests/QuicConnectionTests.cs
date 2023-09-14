@@ -375,6 +375,8 @@ namespace System.Net.Quic.Tests
         {
             const byte data = 0xDC;
 
+            TaskCompletionSource tcs = new TaskCompletionSource();
+
             TaskCompletionSource<IPEndPoint> listenerEndpointTcs = new TaskCompletionSource<IPEndPoint>();
             await Task.WhenAll(
                 Task.Run(async () =>
@@ -386,6 +388,8 @@ namespace System.Net.Quic.Tests
                     var buffer = new byte[1];
                     Assert.Equal(1, await stream.ReadAsync(buffer));
                     Assert.Equal(data, buffer[0]);
+
+                    tcs.SetResult();
                 }).WaitAsync(TimeSpan.FromSeconds(5)),
                 Task.Run(async () =>
                 {
@@ -395,6 +399,8 @@ namespace System.Net.Quic.Tests
                     GC.Collect();
                     await using var stream = await connection.OpenOutboundStreamAsync(QuicStreamType.Unidirectional);
                     await stream.WriteAsync(new byte[1] { data }, completeWrites: true);
+
+                    await tcs.Task;
                 }).WaitAsync(TimeSpan.FromSeconds(5)));
         }
 
