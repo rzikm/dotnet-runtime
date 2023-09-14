@@ -6,8 +6,9 @@ using System.Collections.Generic;
 using System.Net.Quic.Implementations.Managed.Internal.Headers;
 using System.Net.Security;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography.X509Certificates;
 using System.Security.Authentication;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace System.Net.Quic.Implementations.Managed.Internal.Tls
@@ -398,6 +399,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
 
             // TODO: validate client certificate
             _connection._remoteCertificate = clientHandshake.ClientCertificate;
+            ValidateCertificate(clientHandshake.ClientCertificate, new X509Certificate2Collection());
             _recvBufferHandshake.Discard(reader.BytesRead);
             return true;
         }
@@ -415,81 +417,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
             _certRequired = serverHandshake.RequireClientCertificate;
             SetEncryptionSecrets(EncryptionLevel.Application, serverHandshake.ServerApplicationSecret, _applicationWriteSecret);
 
-            // TODO: validate server certificate
             _connection._remoteCertificate = serverHandshake.ServerCertificate;
+            // TODO: send additional certs
+            ValidateCertificate(serverHandshake.ServerCertificate, new X509Certificate2Collection());
             _recvBufferHandshake.Discard(reader.BytesRead);
 
             return true;
-        }
-
-        private void WriteInitial()
-        {
-            Span<byte> buffer = stackalloc byte[1024];
-            AddHandshakeData(EncryptionLevel.Initial, _magicBytes);
-
-            int written = TransportParameters.Write(buffer, !IsClient, _localTransportParams);
-            // prepend the transport parameters by length
-            AddHandshakeData(EncryptionLevel.Initial, MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref written, 1)));
-            AddHandshakeData(EncryptionLevel.Initial, buffer.Slice(0, written));
-
-            // send our protection secrets
-            AddHandshakeData(EncryptionLevel.Initial, _handshakeWriteSecret);
-            AddHandshakeData(EncryptionLevel.Initial, _applicationWriteSecret);
-        }
-
-        private void ReadInitial()
-        {
-            // check if we mock tls is used on the other side as well
-            if (!_recvBufferInitial.ActiveSpan.StartsWith(_magicBytes))
-            {
-                throw new InvalidOperationException("Cannot mock TLS implementation to contact server running true TLS.");
-            }
-
-            _recvBufferInitial.Discard(_magicBytes.Length);
-            int length = MemoryMarshal.Read<int>(_recvBufferInitial.ActiveSpan);
-            _recvBufferInitial.Discard(sizeof(int));
-            if (!TransportParameters.Read(_recvBufferInitial.ActiveSpan.Slice(0, length), !IsClient,
-                out _remoteTransportParams))
-            {
-                throw new Exception("Failed to read transport parameters");
-            }
-            _recvBufferInitial.Discard(length);
-            if (_recvBufferInitial.ActiveLength != _handshakeWriteSecret.Length * 2)
-            {
-                throw new Exception("Failed to read protection secrets");
-            }
-
-            SetEncryptionSecrets(EncryptionLevel.Handshake,
-                _recvBufferInitial.ActiveSpan.Slice(0, _handshakeWriteSecret.Length),
-                _handshakeWriteSecret);
-            _recvBufferInitial.Discard(_handshakeWriteSecret.Length);
-
-            if (!IsClient)
-            {
-                // server can derive the application secrets from the first initial
-                SetEncryptionSecrets(EncryptionLevel.Application, _recvBufferInitial.ActiveSpan, _applicationWriteSecret);
-            }
-            _recvBufferInitial.Discard(_applicationWriteSecret.Length);
-        }
-
-        private void WriteHandshake()
-        {
-            // all we need now is application secrets
-            AddHandshakeData(EncryptionLevel.Handshake, _applicationWriteSecret);
-        }
-
-        private void ReadHandshake()
-        {
-            if (_recvBufferHandshake.ActiveLength != _applicationWriteSecret.Length)
-            {
-                throw new Exception("Failed to read application secret");
-            }
-
-            if (IsClient)
-            {
-                // client derives application secrets upon receiving handshake packet
-                SetEncryptionSecrets(EncryptionLevel.Application, _recvBufferHandshake.ActiveSpan, _applicationWriteSecret);
-            }
         }
 
         public TlsCipherSuite GetNegotiatedCipher() => QuicConstants.InitialCipherSuite;
@@ -518,6 +451,88 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
         {
             _connection.FlushHandshakeData();
         }
+
+        private static readonly Oid s_serverAuthOid = new Oid("1.3.6.1.5.5.7.3.1", null);
+        private static readonly Oid s_clientAuthOid = new Oid("1.3.6.1.5.5.7.3.2", null);
+
+        public unsafe void ValidateCertificate(X509Certificate2? certificate, X509Certificate2Collection additionalCertificates)
+        {
+            SslPolicyErrors sslPolicyErrors = SslPolicyErrors.None;
+            bool wrapException = false;
+
+            X509Chain? chain = null;
+            try
+            {
+                if (certificate is not null)
+                {
+                    chain = new X509Chain();
+                    if (_authOptions.CertificateChainPolicy != null)
+                    {
+                        chain.ChainPolicy = _authOptions.CertificateChainPolicy;
+                    }
+                    else
+                    {
+                        chain.ChainPolicy.RevocationMode = _authOptions.CertificateRevocationCheckMode;
+                        chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+
+                        // TODO: configure chain.ChainPolicy.CustomTrustStore to mirror behavior of SslStream.VerifyRemoteCertificate (https://github.com/dotnet/runtime/issues/73053)
+                    }
+
+                    // set ApplicationPolicy unless already provided.
+                    if (chain.ChainPolicy.ApplicationPolicy.Count == 0)
+                    {
+                        // Authenticate the remote party: (e.g. when operating in server mode, authenticate the client).
+                        chain.ChainPolicy.ApplicationPolicy.Add(IsClient ? s_serverAuthOid : s_clientAuthOid);
+                    }
+
+                    chain.ChainPolicy.ExtraStore.AddRange(additionalCertificates);
+
+                    bool checkCertName = !chain!.ChainPolicy!.VerificationFlags.HasFlag(X509VerificationFlags.IgnoreInvalidName);
+                    sslPolicyErrors |= CertificateValidation.BuildChainAndVerifyProperties(chain!, certificate, checkCertName, !IsClient, TargetHostNameHelper.NormalizeHostName(_authOptions.TargetHost), IntPtr.Zero, 0);
+                }
+                else if (_authOptions.RemoteCertRequired)
+                {
+                    sslPolicyErrors |= SslPolicyErrors.RemoteCertificateNotAvailable;
+                }
+
+                if (_authOptions.CertValidationDelegate is not null)
+                {
+                    wrapException = true;
+                    if (!_authOptions.CertValidationDelegate(_connection, certificate, chain, sslPolicyErrors))
+                    {
+                        wrapException = false;
+
+                        SendTlsAlert(/* BadCertificate */ 42);
+                    }
+                }
+                else if (sslPolicyErrors != SslPolicyErrors.None)
+                {
+                    SendTlsAlert(/* BadCertificate */ 42);
+                }
+            }
+            catch
+            {
+                if (wrapException)
+                {
+                    SendTlsAlert(/* Internal Error */ 80);
+                }
+            }
+            finally
+            {
+                if (chain is not null)
+                {
+                    X509ChainElementCollection elements = chain.ChainElements;
+                    for (int i = 0; i < elements.Count; i++)
+                    {
+                        elements[i].Certificate.Dispose();
+                    }
+
+                    chain.Dispose();
+                }
+            }
+
+        }
+
     }
 
 
