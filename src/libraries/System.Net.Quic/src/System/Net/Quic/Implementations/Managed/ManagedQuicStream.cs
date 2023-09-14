@@ -184,14 +184,14 @@ namespace System.Net.Quic.Implementations.Managed
 
         public override void Write(ReadOnlySpan<byte> buffer) => Write(buffer, false);
 
-        public void Write(ReadOnlySpan<byte> buffer, bool endStream)
+        public void Write(ReadOnlySpan<byte> buffer, bool completeWrites)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
             ThrowIfNotWritable();
             SendStream!.Enqueue(buffer);
 
-            if (endStream)
+            if (completeWrites)
             {
                 SendStream.MarkEndOfData();
                 SendStream.FlushChunk();
@@ -372,12 +372,11 @@ namespace System.Net.Quic.Implementations.Managed
 
         #endregion
 
-        private async ValueTask WriteAsyncInternal(ReadOnlyMemory<byte> buffer, bool endStream,
-            CancellationToken cancellationToken)
+        private async ValueTask WriteAsyncInternal(ReadOnlyMemory<byte> buffer, bool completeWrites, CancellationToken cancellationToken)
         {
             await SendStream!.EnqueueAsync(buffer, cancellationToken).ConfigureAwait(false);
 
-            if (endStream)
+            if (completeWrites)
             {
                 SendStream.MarkEndOfData();
                 await SendStream.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
