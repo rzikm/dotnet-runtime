@@ -451,6 +451,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
 
             _certRequired = serverHandshake.RequireClientCertificate;
             SetEncryptionSecrets(EncryptionLevel.Application, serverHandshake.ServerApplicationSecret, _applicationWriteSecret);
+            _negotiatedAlpn = serverHandshake.NegotiatedAlpn;
 
             _connection._remoteCertificate = serverHandshake.ServerCertificate;
             // TODO: send additional certs
