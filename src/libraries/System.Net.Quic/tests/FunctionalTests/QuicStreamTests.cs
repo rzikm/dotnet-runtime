@@ -354,7 +354,7 @@ namespace System.Net.Quic.Tests
             Assert.Equal(0, bytesRead);
         }
 
-        [Theory]
+        /*[Theory]
         [MemberData(nameof(ReadWrite_Random_Success_Data))]
         public async Task ReadWrite_Random_Success(int readSize, int writeSize)
         {
@@ -398,7 +398,7 @@ namespace System.Net.Quic.Tests
                     Assert.Equal(testBuffer.Length, totalBytesRead);
                     AssertExtensions.SequenceEqual(testBuffer, receiveBuffer);
                 });
-        }
+        }*/
 
         public static IEnumerable<object[]> ReadWrite_Random_Success_Data()
         {

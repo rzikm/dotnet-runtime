@@ -84,7 +84,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         public override Task ReadsClosed => throw new NotImplementedException();
         public override int ReadTimeout { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-        public override Task WritesClosed => throw new NotImplementedException();
+        public override Task WritesClosed => SendStream is not null ? SendStream._writesCompleted.GetTask().AsTask() : Task.CompletedTask;
         public override int WriteTimeout { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
 
         public override void Abort(QuicAbortDirection abortDirection, long errorCode)
