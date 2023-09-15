@@ -18,7 +18,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
     /// </summary>
     internal abstract class QuicSocketContext
     {
-        private readonly EndPoint? _localEndPoint;
+        private readonly IPEndPoint? _localEndPoint;
         private readonly EndPoint? _remoteEndPoint;
         private readonly bool _isServer;
         private readonly CancellationTokenSource _socketTaskCts;
@@ -27,34 +27,34 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
         private readonly Socket _socket;
 
-        protected QuicSocketContext(EndPoint? localEndPoint, EndPoint? remoteEndPoint, bool isServer)
+        protected QuicSocketContext(IPEndPoint? localEndPoint, EndPoint? remoteEndPoint, bool isServer)
         {
-            _socket = new Socket((localEndPoint ?? remoteEndPoint)!.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-            _localEndPoint = localEndPoint;
-            _remoteEndPoint = remoteEndPoint;
+            _socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
 
             _isServer = isServer;
 
             _socketTaskCts = new CancellationTokenSource();
 
             SetupSocket(localEndPoint, remoteEndPoint);
-        }
-
-        private void SetupSocket(EndPoint? localEndPoint, EndPoint? remoteEndPoint)
-        {
-            if (_socket.AddressFamily == AddressFamily.InterNetwork)
-            {
-                _socket.DontFragment = true;
-            }
 
             if (localEndPoint != null)
             {
                 _socket.Bind(localEndPoint);
+                _localEndPoint = new IPEndPoint(localEndPoint.Address, ((IPEndPoint)_socket.LocalEndPoint!).Port);
             }
 
             if (remoteEndPoint != null)
             {
+                _remoteEndPoint = remoteEndPoint;
                 _socket.Connect(remoteEndPoint);
+            }
+        }
+
+        private void SetupSocket(IPEndPoint? localEndPoint, EndPoint? remoteEndPoint)
+        {
+            if (_socket.AddressFamily == AddressFamily.InterNetwork)
+            {
+                _socket.DontFragment = true;
             }
 
 #if WINDOWS
@@ -70,7 +70,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 #endif
         }
 
-        public IPEndPoint LocalEndPoint => (IPEndPoint)_socket.LocalEndPoint!;
+        public IPEndPoint LocalEndPoint => _localEndPoint ?? (_socket.LocalEndPoint as IPEndPoint)!;
 
         public void Start()
         {
