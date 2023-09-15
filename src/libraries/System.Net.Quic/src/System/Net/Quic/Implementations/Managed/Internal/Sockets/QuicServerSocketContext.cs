@@ -82,7 +82,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         internal void StopOrOrphan()
         {
             _acceptNewConnections = false;
-            _newConnections.TryComplete();
+            _newConnections.TryComplete(new QuicException(QuicError.OperationAborted, null, "Listener stopped."));
             if (_connectionsByEndpoint.IsEmpty)
             {
                 SignalStop();
@@ -95,7 +95,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             _newConnections.TryWrite(connection);
         }
 
-        private void OnConnectionHandshakeFailed(Exception ex)
+        internal void OnConnectionHandshakeFailed(Exception ex)
         {
             // Connection establishment failed -> pass it to the listener
             _newConnections.TryWrite(ex);

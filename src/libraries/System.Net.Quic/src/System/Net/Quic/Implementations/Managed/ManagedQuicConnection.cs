@@ -15,6 +15,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Streams;
 using System.Net.Quic.Implementations.Managed.Internal.Tracing;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
 using System.Net.Security;
+using System.Security.Authentication;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -48,7 +49,7 @@ namespace System.Net.Quic.Implementations.Managed
         // This limit should ensure that if we can fit at least an ack frame into the packet,
         private const int RequiredAllowanceForSending = 2 * ConnectionId.MaximumLength + 40;
 
-        private readonly SingleEventValueTaskSource _connectTcs = new SingleEventValueTaskSource();
+        internal readonly SingleEventValueTaskSource _connectTcs = new SingleEventValueTaskSource();
 
         private readonly SingleEventValueTaskSource _closeTcs = new SingleEventValueTaskSource();
 
@@ -702,6 +703,10 @@ namespace System.Net.Quic.Implementations.Managed
             // QUIC CONNECTION_CLOSE frame.
 
             CloseConnection((TransportErrorCode)alert + 0x100, $"Tls alert - {alert}");
+            if (!_connectTcs.IsSet)
+            {
+                _connectTcs.TryCompleteException(new AuthenticationException($"Tls alert - {alert}"));
+            }
         }
 
         private enum ProcessPacketResult
@@ -954,8 +959,14 @@ namespace System.Net.Quic.Implementations.Managed
             return new QuicException(QuicError.OperationAborted, null, "Operation Aborted");
         }
 
-        private static QuicException MakeConnectionAbortedException(QuicTransportError error)
+        private static Exception MakeConnectionAbortedException(QuicTransportError error)
         {
+            // check for TLS Alerts
+            if (error.IsQuicError && (int) error.ErrorCode > 0x100)
+            {
+                return new AuthenticationException("$TLS Alert :{(TlsAlert) (error.ErrorCode - 0x100)}");
+            }
+
             return new QuicException(QuicError.ConnectionAborted, (long)error.ErrorCode, $"Connection aborted: '{error.ReasonPhrase}'");
         }
 

@@ -404,7 +404,7 @@ namespace System.Net.Quic.Implementations.Managed
             SendStream?.OnFatalException(exception);
         }
 
-        internal void OnConnectionClosed(QuicException exception)
+        internal void OnConnectionClosed(Exception exception)
         {
             // closing connection (CONNECTION_CLOSE frame) causes all streams to become closed
             NotifyShutdownWriteCompleted();
