@@ -239,9 +239,14 @@ namespace System.Net.Quic.Tests
             Assert.Contains(TlsAlertMessage.UserCanceled.ToString(), connectException.Message);
         }
 
-        [Fact]
+        [ConditionalFact]
         public async Task Listener_BacklogLimitRefusesConnection_ClientThrows()
         {
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed listener does not support constrained backlog.");
+            }
+        
             QuicListenerOptions listenerOptions = CreateQuicListenerOptions();
             listenerOptions.ListenBacklog = 2;
             await using QuicListener listener = await CreateQuicListener(listenerOptions);
@@ -262,7 +267,7 @@ namespace System.Net.Quic.Tests
             await using var serverConnection3 = await listener.AcceptConnectionAsync();
         }
 
-        [Theory]
+        [ConditionalTheory]
         [InlineData(1, 2)]
         [InlineData(2, 1)]
         [InlineData(15, 10)]
@@ -271,7 +276,7 @@ namespace System.Net.Quic.Tests
         public Task Listener_BacklogLimitRefusesConnection_ParallelClients_ClientThrows(int backlogLimit, int connectCount)
             => Listener_BacklogLimitRefusesConnection_ParallelClients_ClientThrows_Core(backlogLimit, connectCount);
 
-        [Theory]
+        [ConditionalTheory]
         [InlineData(100, 250)]
         [InlineData(250, 100)]
         [InlineData(100, 99)]
@@ -285,6 +290,11 @@ namespace System.Net.Quic.Tests
 
         private async Task Listener_BacklogLimitRefusesConnection_ParallelClients_ClientThrows_Core(int backlogLimit, int connectCount)
         {
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed listener does not support constrained backlog.");
+            }
+
             QuicListenerOptions listenerOptions = CreateQuicListenerOptions();
             listenerOptions.ListenBacklog = backlogLimit;
             await using QuicListener listener = await CreateQuicListener(listenerOptions);
