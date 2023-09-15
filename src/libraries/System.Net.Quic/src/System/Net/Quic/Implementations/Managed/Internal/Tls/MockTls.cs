@@ -40,14 +40,15 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
         private TransportParameters? _remoteTransportParams;
         private readonly List<SslApplicationProtocol> _alpn;
         private readonly SslAuthenticationOptions _authOptions = new SslAuthenticationOptions();
-        private bool _certRequired;
 
         private ArrayBuffer _recvBufferInitial = new ArrayBuffer(1200, true);
         private ArrayBuffer _recvBufferHandshake = new ArrayBuffer(1200, true);
 
         private readonly bool IsClient;
 
+        private bool _certRequired;
         private bool _sentInitial;
+        private SslApplicationProtocol _negotiatedAlpn;
 
         public MockTls(ManagedQuicConnection connection, QuicClientConnectionOptions options, TransportParameters localTransportParams)
             : this(connection, localTransportParams, options.ClientAuthenticationOptions!.ApplicationProtocols)
@@ -98,6 +99,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
             public required TransportParameters TransportParameters { get; init; }
             public required byte[] ClientHandshakeSecret { get; init; }
             public required byte[] ClientApplicationSecret { get; init; }
+            public required List<SslApplicationProtocol> Alpn { get; init; }
 
             public void Write(QuicWriter writer)
             {
@@ -109,6 +111,13 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
                 writer.Advance(written);
                 writer.WriteSpan(ClientHandshakeSecret);
                 writer.WriteSpan(ClientApplicationSecret);
+
+                writer.WriteVarInt(Alpn.Count);
+                foreach (var protocol in Alpn)
+                {
+                    writer.WriteVarInt(protocol.Protocol.Length);
+                    writer.WriteSpan(protocol.Protocol.Span);
+                }
             }
 
             public static ClientHello Read(QuicReader reader)
@@ -118,9 +127,23 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
                     || !reader.TryReadVarInt(out var size)
                     || !TransportParameters.Read(reader.ReadSpan((int)size), false, out var transportParameters)
                     || !reader.TryReadSpan(32, out var clientHandshakeSecret)
-                    || !reader.TryReadSpan(32, out var clientApplicationSecret))
+                    || !reader.TryReadSpan(32, out var clientApplicationSecret)
+                    || !reader.TryReadVarInt(out var alpnCount))
                 {
                     throw new Exception("Failed to read ClientHello");
+                }
+
+                var alpn = new List<SslApplicationProtocol>();
+
+                for (int i = 0; i < alpnCount; i++)
+                {
+                    if (!reader.TryReadVarInt(out var alpnLength)
+                        || !reader.TryReadSpan((int)alpnLength, out var alpnSpan))
+                    {
+                        throw new Exception("Failed to read ClientHello");
+                    }
+
+                    alpn.Add(new SslApplicationProtocol(alpnSpan.ToArray()));
                 }
 
                 return new ClientHello
@@ -128,7 +151,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
                     HostName = Encoding.UTF8.GetString(span),
                     TransportParameters = transportParameters,
                     ClientHandshakeSecret = clientHandshakeSecret.ToArray(),
-                    ClientApplicationSecret = clientApplicationSecret.ToArray()
+                    ClientApplicationSecret = clientApplicationSecret.ToArray(),
+                    Alpn = alpn
                 };
             }
         }
@@ -169,6 +193,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
             public required X509Certificate2 ServerCertificate { get; init; }
             public required bool RequireClientCertificate { get; init; }
             public required byte[] ServerApplicationSecret { get; init; }
+            public required SslApplicationProtocol NegotiatedAlpn { get; init; }
 
             public void Write(QuicWriter writer)
             {
@@ -176,6 +201,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
                 writer.WriteSpan(ServerCertificate.RawData);
                 writer.WriteVarInt(RequireClientCertificate ? 1 : 0);
                 writer.WriteSpan(ServerApplicationSecret);
+                writer.WriteVarInt(NegotiatedAlpn.Protocol.Length);
+                writer.WriteSpan(NegotiatedAlpn.Protocol.Span);
             }
 
             public static ServerHandshake? TryRead(QuicReader reader)
@@ -183,7 +210,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
                 if (!reader.TryReadVarInt(out var length)
                     || !reader.TryReadSpan((int)length, out var span)
                     || !reader.TryReadVarInt(out var requireClientCertificate)
-                    || !reader.TryReadSpan(32, out var serverApplicationSecret))
+                    || !reader.TryReadSpan(32, out var serverApplicationSecret)
+                    || !reader.TryReadVarInt(out var alpnLength)
+                    || !reader.TryReadSpan((int)alpnLength, out var alpnSpan))
                 {
                     return null;
                 }
@@ -192,7 +221,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
                 {
                     ServerCertificate = new X509Certificate2(span.ToArray()),
                     RequireClientCertificate = requireClientCertificate != 0,
-                    ServerApplicationSecret = serverApplicationSecret.ToArray()
+                    ServerApplicationSecret = serverApplicationSecret.ToArray(),
+                    NegotiatedAlpn = new SslApplicationProtocol(alpnSpan.ToArray())
                 };
             }
         }
@@ -275,12 +305,13 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
             {
                 if (_recvBufferInitial.ActiveLength > 0)
                 {
-                    ReadClientHello();
+                    if (ReadClientHello())
+                    {
+                        WriteServerHello();
+                        WriteServerHandshake();
 
-                    WriteServerHello();
-                    WriteServerHandshake();
-
-                    WriteLevel = EncryptionLevel.Handshake;
+                        WriteLevel = EncryptionLevel.Handshake;
+                    }
                 }
 
                 if (_recvBufferHandshake.ActiveLength > 0)
@@ -309,7 +340,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
                 HostName = _authOptions.TargetHost!,
                 TransportParameters = _localTransportParams,
                 ClientHandshakeSecret = _handshakeWriteSecret,
-                ClientApplicationSecret = _applicationWriteSecret
+                ClientApplicationSecret = _applicationWriteSecret,
+                Alpn = _alpn
             }.Write(writer);
 
             AddHandshakeData(EncryptionLevel.Initial, writer.Buffer.Span.Slice(0, writer.BytesWritten));
@@ -354,14 +386,15 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
             {
                 ServerCertificate = _authOptions.CertificateContext!.TargetCertificate,
                 RequireClientCertificate = _authOptions.RemoteCertRequired,
-                ServerApplicationSecret = _applicationWriteSecret
+                ServerApplicationSecret = _applicationWriteSecret,
+                NegotiatedAlpn = _negotiatedAlpn
             }.Write(writer);
 
             AddHandshakeData(EncryptionLevel.Handshake, writer.Buffer.Span.Slice(0, writer.BytesWritten));
             ArrayPool<byte>.Shared.Return(buffer);
         }
 
-        private void ReadClientHello()
+        private bool ReadClientHello()
         {
             QuicReader reader = new QuicReader(_recvBufferInitial.ActiveMemory);
 
@@ -374,6 +407,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
             // server can derive the application secrets from the first initial
             SetEncryptionSecrets(EncryptionLevel.Application, clientHello.ClientApplicationSecret, _applicationWriteSecret);
             _recvBufferInitial.Discard(reader.BytesRead);
+
+            return NegotiateAlpn(clientHello.Alpn);
         }
 
         private void ReadServerHello()
@@ -429,7 +464,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
 
         public TransportParameters? GetPeerTransportParameters(bool isServer) => _remoteTransportParams;
 
-        public SslApplicationProtocol GetNegotiatedProtocol() => _alpn[0];
+        public SslApplicationProtocol GetNegotiatedProtocol() => _negotiatedAlpn;
 
         private void AddHandshakeData(EncryptionLevel level, ReadOnlySpan<byte> data)
         {
@@ -450,6 +485,21 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tls
         private void Flush()
         {
             _connection.FlushHandshakeData();
+        }
+
+        private bool NegotiateAlpn(List<SslApplicationProtocol> clientAlpn)
+        {
+            foreach (var alpn in clientAlpn)
+            {
+                if (_alpn.Contains(alpn))
+                {
+                    _negotiatedAlpn = alpn;
+                    return true;
+                }
+            }
+
+            SendTlsAlert(/* NoApplicationProtocol */ 120);
+            return false;
         }
 
         private static readonly Oid s_serverAuthOid = new Oid("1.3.6.1.5.5.7.3.1", null);

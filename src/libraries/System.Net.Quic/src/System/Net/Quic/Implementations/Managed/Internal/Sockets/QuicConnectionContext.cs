@@ -42,12 +42,35 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         {
             _parent = parent;
             // TODO-RZ: move processing of first packet to Listener and create connection context only after we get the QuicServerConnectionOptions.
-            Connection = new ManagedQuicConnection(parent.ListenerOptions.ConnectionOptionsCallback(null!, default, default).AsTask().GetAwaiter().GetResult(), this, remoteEndpoint, odcid, tlsFactory);
+            Connection = new ManagedQuicConnection(GetServerConnectionOptions(parent), this, remoteEndpoint, odcid, tlsFactory);
             Connection.SetSocketContext(this);
+
+            // if handshake fails, we need to propagate the error to the listener.AcceptConnectionAsync
+            // TODO-RZ: this is far from ideal, and should be revisited together with the rest of the
+            // server-side handshake code
+            Connection._connectTcs.GetTask().AsTask().ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                {
+                    parent.OnConnectionHandshakeFailed(t.Exception!.InnerException!);
+                }
+            }, TaskScheduler.Default);
 
             ObjectPool<SentPacket>? sentPacketPool = new ObjectPool<SentPacket>(256);
             _sendContext = new QuicSocketContext.SendContext(sentPacketPool);
             _recvContext = new QuicSocketContext.RecvContext(sentPacketPool);
+        }
+
+        public static QuicServerConnectionOptions GetServerConnectionOptions(QuicServerSocketContext parent)
+        {
+            try
+            {
+                return parent.ListenerOptions.ConnectionOptionsCallback(null!, default, default).AsTask().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                throw new QuicException(QuicError.CallbackError, null, "ConnectionOptionsCallback failed.", ex);
+            }
         }
 
         public QuicConnectionContext(SingleConnectionSocketContext parent, ManagedQuicConnection connection)

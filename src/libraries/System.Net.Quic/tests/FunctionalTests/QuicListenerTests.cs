@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Net.Security;
 using System.Runtime.ExceptionServices;
 using System.Security.Authentication;
+using Microsoft.DotNet.XUnitExtensions;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -63,7 +64,7 @@ namespace System.Net.Quic.Tests
         }
 
         //[ActiveIssue("[Long Running Test]")]
-        [Fact]
+        [ConditionalFact]
         public async Task AcceptConnectionAsync_InvalidConnectionOptions_Throws()
         {
             QuicListenerOptions listenerOptions = CreateQuicListenerOptions();
@@ -72,6 +73,11 @@ namespace System.Net.Quic.Tests
             await using QuicListener listener = await CreateQuicListener(listenerOptions).AsTask().WaitAsync(SmallTestTimeout);
 
             ValueTask<QuicConnection> connectTask = CreateQuicConnection(listener.LocalEndPoint);
+
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed listener does not close connections in the middle of handshake.");
+            }
             await Assert.ThrowsAnyAsync<ArgumentException>(async () => await listener.AcceptConnectionAsync().AsTask().WaitAsync(SmallTestTimeout));
         }
 
@@ -85,7 +91,7 @@ namespace System.Net.Quic.Tests
         }
 
         //[ActiveIssue("[Long Running Test]")]
-        [Theory]
+        [ConditionalTheory]
         [InlineData(true)]
         [InlineData(false)]
         public async Task AcceptConnectionAsync_ThrowingOptionsCallback_Throws(bool useFromException)
@@ -102,11 +108,16 @@ namespace System.Net.Quic.Tests
             Exception exception = await AssertThrowsQuicExceptionAsync(QuicError.CallbackError, async () => await listener.AcceptConnectionAsync().AsTask().WaitAsync(SmallTestTimeout));
             Assert.NotNull(exception.InnerException);
             Assert.Equal(expectedMessage, exception.InnerException.Message);
+
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed listener does not close connections in the middle of handshake.");
+            }
             await Assert.ThrowsAsync<AuthenticationException>(() => connectTask.AsTask().WaitAsync(SmallTestTimeout));
         }
 
         //[ActiveIssue("[Long Running Test]")]
-        [Fact]
+        [ConditionalFact]
         public async Task AcceptConnectionAsync_ThrowingCallbackOde_KeepRunning()
         {
             bool firstRun = true;
@@ -129,6 +140,11 @@ namespace System.Net.Quic.Tests
 
             Exception exception = await AssertThrowsQuicExceptionAsync(QuicError.CallbackError, async () => await listener.AcceptConnectionAsync().AsTask().WaitAsync(SmallTestTimeout));
             Assert.True(exception.InnerException is ObjectDisposedException);
+
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed listener does not close connections in the middle of handshake.");
+            }
             await Assert.ThrowsAsync<AuthenticationException>(() => connectTask.AsTask().WaitAsync(SmallTestTimeout));
 
             // Throwing ODE in callback should keep Listener running
@@ -137,7 +153,7 @@ namespace System.Net.Quic.Tests
             await using QuicConnection clientConnection = await connectTask.AsTask().WaitAsync(SmallTestTimeout);
         }
 
-        [Theory]
+        [ConditionalTheory]
         [InlineData(true)]
         [InlineData(false)]
         [OuterLoop("Exercises several seconds long timeout.")]
@@ -163,14 +179,23 @@ namespace System.Net.Quic.Tests
             Exception exception = await AssertThrowsQuicExceptionAsync(QuicError.ConnectionTimeout, async () => await listener.AcceptConnectionAsync());
             Assert.Equal(SR.Format(SR.net_quic_handshake_timeout, QuicDefaults.HandshakeTimeout), exception.Message);
 
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed listener does not close connections in the middle of handshake.");
+            }
             // Connect attempt should be stopped with "UserCanceled".
             var connectException = await Assert.ThrowsAsync<AuthenticationException>(async () => await connectTask);
             Assert.Contains(TlsAlertMessage.UserCanceled.ToString(), connectException.Message);
         }
 
-        [Fact]
+        [ConditionalFact]
         public async Task AcceptConnectionAsync_ListenerDisposed_Throws()
         {
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed listener does not close connections in the middle of handshake.");
+            }
+
             var serverDisposed = new TaskCompletionSource();
             var connectAttempted = new TaskCompletionSource();
 
@@ -203,6 +228,11 @@ namespace System.Net.Quic.Tests
             var accept2Exception = await AssertThrowsQuicExceptionAsync(QuicError.OperationAborted, async () => await acceptTask2);
 
             Assert.Equal(accept1Exception, accept2Exception);
+
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed listener does not close connections in the middle of handshake.");
+            }
 
             // Connect attempt should be stopped with "UserCanceled".
             var connectException = await Assert.ThrowsAsync<AuthenticationException>(async () => await connectTask);
@@ -361,9 +391,14 @@ namespace System.Net.Quic.Tests
         }
 
         [ActiveIssue("System.Net.Sockets.SocketException : Only one usage of each socket address (protocol/network address/port) is normally permitted.")]
-        [Fact]
+        [ConditionalFact]
         public async Task TwoListenersOnSamePort_DisjointAlpn_Success()
         {
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed Quic does not support two listeners on the same port");
+            }
+
             await using QuicListener listener1 = await CreateQuicListener();
 
             QuicListenerOptions listenerOptions = CreateQuicListenerOptions();
@@ -392,9 +427,14 @@ namespace System.Net.Quic.Tests
             await using QuicConnection clientConnection2 = await connectTask2.AsTask().WaitAsync(TimeSpan.FromSeconds(30));
         }
 
-        [Fact]
+        [ConditionalFact]
         public async Task TwoListenersOnSamePort_SameAlpn_Throws()
         {
+            if (IsManaged)
+            {
+                throw new SkipTestException("Managed Quic does not support two listeners on the same port");
+            }
+
             await using QuicListener listener = await CreateQuicListener();
             await AssertThrowsQuicExceptionAsync(QuicError.AlpnInUse, async () => await CreateQuicListener(listener.LocalEndPoint));
         }
