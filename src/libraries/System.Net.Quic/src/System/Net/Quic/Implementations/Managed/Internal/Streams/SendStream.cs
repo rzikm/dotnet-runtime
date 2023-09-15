@@ -164,7 +164,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
                 StreamState = SendStreamState.WantReset;
             }
 
-            _writesCompleted.TryCompleteException(new QuicException(QuicError.OperationAborted, null, "Write was aborted."));
+            _writesCompleted.TryCompleteException(byUs ? new QuicException(QuicError.OperationAborted, null, "Write was aborted.") : new QuicException(QuicError.StreamAborted, errorCode, "Write was aborted."));
             _toSendChannel.Writer.TryComplete();
             if (_toBeQueuedChunk.Buffer != null)
             {
