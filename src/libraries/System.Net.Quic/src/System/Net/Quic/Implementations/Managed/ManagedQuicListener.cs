@@ -3,6 +3,7 @@
 
 using System.Net.Quic.Implementations.Managed.Internal.Sockets;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -19,7 +20,7 @@ namespace System.Net.Quic.Implementations.Managed
 
         private bool _disposed;
 
-        private readonly ChannelReader<ManagedQuicConnection> _acceptQueue;
+        private readonly ChannelReader<object /* either ManagedQuicConnectin or Exception */> _acceptQueue;
         private readonly QuicServerSocketContext _socketContext;
 
         private ManagedQuicListener(QuicListenerOptions options)
@@ -27,7 +28,7 @@ namespace System.Net.Quic.Implementations.Managed
         {
             options.Validate(nameof(options));
 
-            var channel = Channel.CreateBounded<ManagedQuicConnection>(new BoundedChannelOptions(options.ListenBacklog)
+            var channel = Channel.CreateBounded<object>(new BoundedChannelOptions(options.ListenBacklog)
             {
                 SingleReader = true,
                 SingleWriter = true,
@@ -45,7 +46,22 @@ namespace System.Net.Quic.Implementations.Managed
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            return await _acceptQueue.ReadAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var result = await _acceptQueue.ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (result is ManagedQuicConnection qc)
+                {
+                    return qc;
+                }
+
+                ExceptionDispatchInfo.Throw((Exception)result);
+                throw null; // Never reached.
+            }
+            catch (ChannelClosedException ex) when (ex.InnerException is not null)
+            {
+                ExceptionDispatchInfo.Throw(ex.InnerException);
+                throw;
+            }
         }
 
         public override ValueTask DisposeAsync()
