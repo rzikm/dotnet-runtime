@@ -45,7 +45,7 @@ namespace System.Net.Quic.Implementations.Managed
         internal Channel<ManagedQuicStream> IncomingStreams { get; } =
             Channel.CreateUnbounded<ManagedQuicStream>(new UnboundedChannelOptions()
             {
-                SingleReader = true,
+                SingleReader = false,
                 SingleWriter = true
             });
 
