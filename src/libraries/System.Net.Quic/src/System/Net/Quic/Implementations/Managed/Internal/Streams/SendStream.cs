@@ -555,6 +555,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 #pragma warning restore CA1822, IDE0060 // mark as static
         {
             // TODO-RZ: handle callers blocking on other async tasks
+            _writesCompleted.TryCompleteException(exception);
         }
     }
 }
