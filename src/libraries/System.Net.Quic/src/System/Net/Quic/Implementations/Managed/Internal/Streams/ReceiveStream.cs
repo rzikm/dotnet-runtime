@@ -3,7 +3,6 @@
 
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Net.Quic.Implementations.Managed.Internal.Headers;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -28,6 +27,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         ///     Current state of the stream.
         /// </summary>
         internal RecvStreamState StreamState { get; private set; }
+
+        internal TaskCompletionSource ReceiveClosed { get; private set; } = new TaskCompletionSource();
 
         /// <summary>
         ///     Channel for producing chunks for the user to read.
@@ -251,6 +252,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
                     {
                         StreamState = RecvStreamState.DataReceived;
                         _deliverableChannel.Writer.TryComplete();
+                        ReceiveClosed.TrySetResult();
                     }
                 }
             }
@@ -455,14 +457,16 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
         public void OnFatalException(Exception e)
         {
-            // TODO-RZ: This feels a bit fishy now, I don't remember why it was necesary.
+            // TODO-RZ: This feels a bit fishy now, I don't remember why it was necessary.
             if (e is QuicException qe && qe.QuicError == QuicError.ConnectionAborted && qe.ApplicationErrorCode == null)
             {
                 _deliverableChannel.Writer.TryComplete(null);
+                ReceiveClosed.TrySetResult();
             }
             else
             {
                 _deliverableChannel.Writer.TryComplete(e);
+                ReceiveClosed.TrySetException(e);
             }
         }
 
@@ -483,9 +487,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
         private void SetStreamAborted(long errorCode, bool byUs)
         {
-            _deliverableChannel.Writer.TryComplete(byUs
+            Exception ex = byUs
                 ? new QuicException(QuicError.OperationAborted, null, "Stream aborted by us.")
-                : new QuicException(QuicError.StreamAborted, errorCode, "Read aborted by peer."));
+                : new QuicException(QuicError.StreamAborted, errorCode, "Read aborted by peer.");
+            _deliverableChannel.Writer.TryComplete(ex);
+            ReceiveClosed.TrySetException(ex);
         }
     }
 }
