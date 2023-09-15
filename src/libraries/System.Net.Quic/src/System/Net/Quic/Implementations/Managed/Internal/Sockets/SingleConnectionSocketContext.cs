@@ -10,7 +10,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         private readonly EndPoint _remoteEndPoint;
         internal QuicConnectionContext ConnectionContext { get; }
 
-        internal SingleConnectionSocketContext(EndPoint? localEndpoint, EndPoint remoteEndPoint,
+        internal SingleConnectionSocketContext(IPEndPoint? localEndpoint, EndPoint remoteEndPoint,
             ManagedQuicConnection connection)
             : base(localEndpoint, remoteEndPoint, connection.IsServer)
         {
