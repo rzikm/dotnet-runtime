@@ -286,6 +286,8 @@ namespace System.Net.Quic.Implementations.Managed
             EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
             : base(true)
         {
+            options.Validate(nameof(options));
+
             _connectionOptions = options;
             _canAccept = options.MaxInboundUnidirectionalStreams > 0 || options.MaxInboundBidirectionalStreams > 0;
             IsServer = true;

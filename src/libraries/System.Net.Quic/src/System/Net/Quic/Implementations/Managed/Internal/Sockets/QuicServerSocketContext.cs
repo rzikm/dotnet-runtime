@@ -11,7 +11,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 {
     internal sealed class QuicServerSocketContext : QuicSocketContext
     {
-        private readonly ChannelWriter<ManagedQuicConnection> _newConnections;
+        private readonly ChannelWriter<object> _newConnections;
         internal QuicListenerOptions ListenerOptions { get; }
 
         private ImmutableDictionary<EndPoint, QuicConnectionContext> _connectionsByEndpoint;
@@ -21,7 +21,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         private readonly TlsFactory _tlsFactory;
 
         internal QuicServerSocketContext(IPEndPoint localEndPoint, QuicListenerOptions listenerOptions,
-            ChannelWriter<ManagedQuicConnection> newConnectionsWriter, TlsFactory tlsFactory)
+            ChannelWriter<object> newConnectionsWriter, TlsFactory tlsFactory)
             : base(localEndPoint, null, true)
         {
             _newConnections = newConnectionsWriter;
@@ -53,7 +53,16 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
                 // TODO-RZ: handle connection failures when the initial packet is discarded (e.g. because connection id is
                 // too long). This likely will need moving header parsing from Connection to socket context.
-                connectionCtx = new QuicConnectionContext(this, datagram.RemoteEndpoint, dcid, _tlsFactory);
+                try
+                {
+                    connectionCtx = new QuicConnectionContext(this, datagram.RemoteEndpoint, dcid, _tlsFactory);
+                }
+                catch (Exception ex)
+                {
+                    // TODO-RZ: send CONNECTION_REFUSED
+                    _newConnections.TryWrite(ex);
+                    return;
+                }
                 ImmutableInterlocked.TryAdd(ref _connectionsByEndpoint, datagram.RemoteEndpoint, connectionCtx);
 
                 isNewConnection = true;
@@ -84,6 +93,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         {
             // Connection established -> pass it to the listener
             _newConnections.TryWrite(connection);
+        }
+
+        private void OnConnectionHandshakeFailed(Exception ex)
+        {
+            // Connection establishment failed -> pass it to the listener
+            _newConnections.TryWrite(ex);
         }
 
         protected internal override bool OnConnectionStateChanged(ManagedQuicConnection connection, QuicConnectionState newState)
