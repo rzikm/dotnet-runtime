@@ -55,4 +55,53 @@ public sealed class QuicConnectionDatagramTests : QuicTestBase
             }
         }
     }
+
+    [Fact]
+    public Task DatagramSendDisabled_SendThrows()
+    {
+        var clientOptions = CreateQuicClientOptions(new IPEndPoint(IPAddress.Loopback, 0));
+        clientOptions.ReceiveDatagramCallback = null;
+
+        var serverOptions = CreateQuicServerOptions();
+        serverOptions.ReceiveDatagramCallback = null;
+
+        return RunClientServer(client =>
+        {
+           return Assert.ThrowsAsync<InvalidOperationException>(() => client.SendDatagramAsync(new byte[1]).AsTask());
+        }, server =>
+        {
+            return Assert.ThrowsAsync<InvalidOperationException>(() => server.SendDatagramAsync(new byte[1]).AsTask());
+        },
+        clientOptions: clientOptions, 
+        listenerOptions: CreateQuicListenerOptions(serverOptions: serverOptions));
+    }
+
+    [Fact]
+    public Task DatagramSend_Receive_Success()
+    {
+        TaskCompletionSource<byte[]> tcs = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        byte[] datagram = new byte[1000];
+        Random.Shared.NextBytes(datagram);
+
+        var clientOptions = CreateQuicClientOptions(new IPEndPoint(IPAddress.Loopback, 0));
+        clientOptions.ReceiveDatagramCallback = (_, datagram) =>
+        {
+            tcs.TrySetResult(datagram.ToArray());
+        };
+
+        var serverOptions = CreateQuicServerOptions();
+        serverOptions.ReceiveDatagramCallback = null;
+
+        return RunClientServer(async client =>
+        {
+            var dgram = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(datagram, dgram);
+        }, server =>
+        {
+            return server.SendDatagramAsync(datagram).AsTask();
+        },
+        clientOptions: clientOptions, 
+        listenerOptions: CreateQuicListenerOptions(serverOptions: serverOptions));
+    }
 }

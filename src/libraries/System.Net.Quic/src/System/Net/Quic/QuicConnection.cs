@@ -199,7 +199,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
     public bool DatagramSendEnabled { get; private set; }
     public int DatagramMaxSendLength { get; private set; }
 
-    private MsQuicBuffers _datagramBuffers { get; set; }
+    private MsQuicBuffers _datagramBuffers = new MsQuicBuffers();
     private readonly ResettableValueTaskSource _datagramSendTcs = new ResettableValueTaskSource();
 
     /// <summary>
@@ -471,7 +471,8 @@ public sealed partial class QuicConnection : IAsyncDisposable
             unsafe
             {
                 _datagramBuffers.Initialize(buffer);
-                MsQuicApi.Api.DatagramSend(_handle, _datagramBuffers.Buffers, (uint)_datagramBuffers.Count, QUIC_SEND_FLAGS.NONE, IntPtr.Zero.ToPointer());
+
+                ThrowHelper.ThrowIfMsQuicError(MsQuicApi.Api.DatagramSend(_handle, _datagramBuffers.Buffers, (uint)_datagramBuffers.Count, QUIC_SEND_FLAGS.NONE, IntPtr.Zero.ToPointer()));
             }
         }
 
@@ -527,7 +528,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
 #endif
         // workaround for https://github.com/microsoft/msquic/issues/3906
         // query whether datagram send is enabled since on servers, we might not receive the event on time
-        DatagramSendEnabled = MsQuicHelpers.GetMsQuicParameter<uint>(_handle, QUIC_PARAM_CONN_DATAGRAM_SEND_ENABLED) != 0;
+        DatagramSendEnabled = MsQuicHelpers.GetMsQuicParameter<byte>(_handle, QUIC_PARAM_CONN_DATAGRAM_SEND_ENABLED) != 0;
         if (DatagramSendEnabled && DatagramMaxSendLength == 0)
         {
             // default value taken from MsQuic source code calculated based on the minimum MTU required
