@@ -140,14 +140,14 @@ namespace System.Net.Quic.Tests
             return QuicConnection.ConnectAsync(clientOptions);
         }
 
-        internal QuicListenerOptions CreateQuicListenerOptions(IPAddress address = null)
+        internal QuicListenerOptions CreateQuicListenerOptions(IPAddress address = null, QuicServerConnectionOptions serverOptions = null)
         {
             address ??= IPAddress.Loopback;
             return new QuicListenerOptions()
             {
                 ListenEndPoint = new IPEndPoint(address, 0),
                 ApplicationProtocols = new List<SslApplicationProtocol>() { ApplicationProtocol },
-                ConnectionOptionsCallback = (_, _, _) => ValueTask.FromResult(CreateQuicServerOptions())
+                ConnectionOptionsCallback = (_, _, _) => ValueTask.FromResult(serverOptions ?? CreateQuicServerOptions())
             };
         }
 
@@ -276,7 +276,7 @@ namespace System.Net.Quic.Tests
             await t;
         }
 
-        internal async Task RunClientServer(Func<QuicConnection, Task> clientFunction, Func<QuicConnection, Task> serverFunction, int iterations = 1, int millisecondsTimeout = PassingTestTimeoutMilliseconds, QuicListenerOptions listenerOptions = null)
+        internal async Task RunClientServer(Func<QuicConnection, Task> clientFunction, Func<QuicConnection, Task> serverFunction, int iterations = 1, int millisecondsTimeout = PassingTestTimeoutMilliseconds, QuicListenerOptions? listenerOptions = null, QuicClientConnectionOptions? clientOptions = null)
         {
             const long ClientCloseErrorCode = 11111;
             const long ServerCloseErrorCode = 22222;
@@ -288,7 +288,7 @@ namespace System.Net.Quic.Tests
 
             for (int i = 0; i < iterations; ++i)
             {
-                (QuicConnection clientConnection, QuicConnection serverConnection) = await CreateConnectedQuicConnection(listener);
+                (QuicConnection clientConnection, QuicConnection serverConnection) = await CreateConnectedQuicConnection(clientOptions, listener);
                 await using (clientConnection)
                 await using (serverConnection)
                 {

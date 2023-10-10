@@ -375,4 +375,21 @@ internal sealed unsafe partial class MsQuicApi
             }
         }
     }
+
+    public int DatagramSend(MsQuicSafeHandle connection, QUIC_BUFFER* buffers, uint buffersCount, QUIC_SEND_FLAGS flags, void* context)
+    {
+        bool success = false;
+        try
+        {
+            connection.DangerousAddRef(ref success);
+            return ApiTable->DatagramSend(connection.QuicHandle, buffers, buffersCount, flags, context);
+        }
+        finally
+        {
+            if (success)
+            {
+                connection.DangerousRelease();
+            }
+        }
+    }
 }

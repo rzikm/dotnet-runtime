@@ -21,6 +21,9 @@ using PEER_STREAM_STARTED_DATA = Microsoft.Quic.QUIC_CONNECTION_EVENT._Anonymous
 using SHUTDOWN_COMPLETE_DATA = Microsoft.Quic.QUIC_CONNECTION_EVENT._Anonymous_e__Union._SHUTDOWN_COMPLETE_e__Struct;
 using SHUTDOWN_INITIATED_BY_PEER_DATA = Microsoft.Quic.QUIC_CONNECTION_EVENT._Anonymous_e__Union._SHUTDOWN_INITIATED_BY_PEER_e__Struct;
 using SHUTDOWN_INITIATED_BY_TRANSPORT_DATA = Microsoft.Quic.QUIC_CONNECTION_EVENT._Anonymous_e__Union._SHUTDOWN_INITIATED_BY_TRANSPORT_e__Struct;
+using DATAGRAM_STATE_CHANGED_DATA = Microsoft.Quic.QUIC_CONNECTION_EVENT._Anonymous_e__Union._DATAGRAM_STATE_CHANGED_e__Struct;
+using DATAGRAM_RECEIVED_DATA = Microsoft.Quic.QUIC_CONNECTION_EVENT._Anonymous_e__Union._DATAGRAM_RECEIVED_e__Struct;
+using DATAGRAM_SEND_STATE_CHANGED_DATA = Microsoft.Quic.QUIC_CONNECTION_EVENT._Anonymous_e__Union._DATAGRAM_SEND_STATE_CHANGED_e__Struct;
 
 namespace System.Net.Quic;
 
@@ -189,6 +192,16 @@ public sealed partial class QuicConnection : IAsyncDisposable
     /// <inheritdoc />
     public override string ToString() => _handle.ToString();
 
+    internal ReceiveDatagramCallback? _receiveDatagramCallback;
+
+    public bool DatagramReceiveEnabled => _receiveDatagramCallback is not null;
+
+    public bool DatagramSendEnabled { get; private set; }
+    public int DatagramMaxSendLength { get; private set; }
+
+    private MsQuicBuffers _datagramBuffers { get; set; }
+    private readonly ResettableValueTaskSource _datagramSendTcs = new ResettableValueTaskSource();
+
     /// <summary>
     /// Initializes a new instance of an outbound <see cref="QuicConnection" />.
     /// </summary>
@@ -295,6 +308,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
                 options.ClientAuthenticationOptions.RemoteCertificateValidationCallback,
                 options.ClientAuthenticationOptions.CertificateChainPolicy?.Clone());
             _configuration = MsQuicConfiguration.Create(options);
+            _receiveDatagramCallback = options.ReceiveDatagramCallback;
 
             // RFC 6066 forbids IP literals
             // DNI mapping is handled by MsQuic
@@ -346,6 +360,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
                 options.ServerAuthenticationOptions.RemoteCertificateValidationCallback,
                 options.ServerAuthenticationOptions.CertificateChainPolicy?.Clone());
             _configuration = MsQuicConfiguration.Create(options, targetHost);
+            _receiveDatagramCallback = options.ReceiveDatagramCallback;
 
             unsafe
             {
@@ -426,6 +441,43 @@ public sealed partial class QuicConnection : IAsyncDisposable
         }
     }
 
+    public ValueTask SendDatagramAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed == 1, this);
+
+        if (!DatagramSendEnabled)
+        {
+            throw new InvalidOperationException("Datagram send is not enabled");
+        }
+
+        // Concurrent call, this one lost the race.
+        if (!_datagramSendTcs.TryGetValueTask(out ValueTask valueTask, this, cancellationToken))
+        {
+            throw new InvalidOperationException(SR.Format(SR.net_io_invalidnestedcall, "write"));
+        }
+
+        // No need to call anything since we already have a result, most likely an exception.
+        if (valueTask.IsCompleted)
+        {
+            return valueTask;
+        }
+
+        if (buffer.IsEmpty)
+        {
+            _datagramSendTcs.TrySetResult();
+        }
+        else
+        {
+            unsafe
+            {
+                _datagramBuffers.Initialize(buffer);
+                MsQuicApi.Api.DatagramSend(_handle, _datagramBuffers.Buffers, (uint)_datagramBuffers.Count, QUIC_SEND_FLAGS.NONE, IntPtr.Zero.ToPointer());
+            }
+        }
+
+        return valueTask;
+    }
+
     /// <summary>
     /// Closes the connection with the application provided code, see <see href="https://www.rfc-editor.org/rfc/rfc9000.html#immediate-close">RFC 9000: Connection Termination</see> for more details.
     /// </summary>
@@ -460,6 +512,8 @@ public sealed partial class QuicConnection : IAsyncDisposable
 
     private unsafe int HandleEventConnected(ref CONNECTED_DATA data)
     {
+        System.Console.WriteLine($"{this}: CONNECTED");
+
         _negotiatedApplicationProtocol = new SslApplicationProtocol(new Span<byte>(data.NegotiatedAlpn, data.NegotiatedAlpnLength).ToArray());
 
         QuicAddr remoteAddress = MsQuicHelpers.GetMsQuicParameter<QuicAddr>(_handle, QUIC_PARAM_CONN_REMOTE_ADDRESS);
@@ -471,6 +525,15 @@ public sealed partial class QuicConnection : IAsyncDisposable
 #if DEBUG
         _tlsSecret?.WriteSecret();
 #endif
+        // workaround for https://github.com/microsoft/msquic/issues/3906
+        // query whether datagram send is enabled since on servers, we might not receive the event on time
+        DatagramSendEnabled = MsQuicHelpers.GetMsQuicParameter<uint>(_handle, QUIC_PARAM_CONN_DATAGRAM_SEND_ENABLED) != 0;
+        if (DatagramSendEnabled && DatagramMaxSendLength == 0)
+        {
+            // default value taken from MsQuic source code calculated based on the minimum MTU required
+            // for QUIC as a protocol and usual IPv6 + QUIC headers overhead
+            DatagramMaxSendLength = 1168;
+        }
 
         if (NetEventSource.Log.IsEnabled())
         {
@@ -538,6 +601,32 @@ public sealed partial class QuicConnection : IAsyncDisposable
             return QUIC_STATUS_HANDSHAKE_FAILURE;
         }
     }
+    private unsafe int HandleEventDatagramStateChanged(ref DATAGRAM_STATE_CHANGED_DATA data)
+    {
+        System.Console.WriteLine($"{this}: DATAGRAM_STATE_CHANGED_DATA: Enabled={(data.SendEnabled)}, Mtu ={data.MaxSendLength}");
+
+        DatagramSendEnabled = data.SendEnabled != 0;
+        DatagramMaxSendLength = data.SendEnabled != 0 ? data.MaxSendLength : 0;
+        return QUIC_STATUS_SUCCESS;
+    }
+    private unsafe int HandleEventDatagramReceived(ref DATAGRAM_RECEIVED_DATA data)
+    {
+        System.Console.WriteLine($"{this}: DATAGRAM_RECEIVED_DATA: Length={(data.Buffer->Length)}");
+
+        _receiveDatagramCallback?.Invoke(this, new ReadOnlySpan<byte>(data.Buffer->Buffer, (int)data.Buffer->Length));
+        return QUIC_STATUS_SUCCESS;
+    }
+    private unsafe int HandleEventDatagramSendStateChanged(ref DATAGRAM_SEND_STATE_CHANGED_DATA data)
+    {
+        System.Console.WriteLine($"{this}: DATAGRAM_SEND_STATE_CHANGED: ctx={((IntPtr)data.ClientContext)} {data.State}");
+
+        if (data.State == QUIC_DATAGRAM_SEND_STATE.SENT)
+        {
+            _datagramSendTcs.TrySetResult();
+        }
+
+        return QUIC_STATUS_SUCCESS;
+    }
 
     private unsafe int HandleConnectionEvent(ref QUIC_CONNECTION_EVENT connectionEvent)
         => connectionEvent.Type switch
@@ -550,6 +639,9 @@ public sealed partial class QuicConnection : IAsyncDisposable
             QUIC_CONNECTION_EVENT_TYPE.PEER_ADDRESS_CHANGED => HandleEventPeerAddressChanged(ref connectionEvent.PEER_ADDRESS_CHANGED),
             QUIC_CONNECTION_EVENT_TYPE.PEER_STREAM_STARTED => HandleEventPeerStreamStarted(ref connectionEvent.PEER_STREAM_STARTED),
             QUIC_CONNECTION_EVENT_TYPE.PEER_CERTIFICATE_RECEIVED => HandleEventPeerCertificateReceived(ref connectionEvent.PEER_CERTIFICATE_RECEIVED),
+            QUIC_CONNECTION_EVENT_TYPE.DATAGRAM_STATE_CHANGED => HandleEventDatagramStateChanged(ref connectionEvent.DATAGRAM_STATE_CHANGED),
+            QUIC_CONNECTION_EVENT_TYPE.DATAGRAM_RECEIVED => HandleEventDatagramReceived(ref connectionEvent.DATAGRAM_RECEIVED),
+            QUIC_CONNECTION_EVENT_TYPE.DATAGRAM_SEND_STATE_CHANGED => HandleEventDatagramSendStateChanged(ref connectionEvent.DATAGRAM_SEND_STATE_CHANGED),
             _ => QUIC_STATUS_SUCCESS,
         };
 
@@ -619,6 +711,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
         _handle.Dispose();
 
         _configuration?.Dispose();
+        _datagramBuffers.Dispose();
 
         // Dispose remote certificate only if it hasn't been accessed via getter, in which case the accessing code becomes the owner of the certificate lifetime.
         if (!_remoteCertificateExposed)

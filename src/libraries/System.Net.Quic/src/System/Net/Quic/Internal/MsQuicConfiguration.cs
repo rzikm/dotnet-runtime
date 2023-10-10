@@ -126,6 +126,8 @@ internal static class MsQuicConfiguration
             settings.IsSet.IdleTimeoutMs = 1;
             settings.IdleTimeoutMs = options.IdleTimeout != Timeout.InfiniteTimeSpan ? (ulong)options.IdleTimeout.TotalMilliseconds : 0;
         }
+        settings.IsSet.DatagramReceiveEnabled = 1;
+        settings.DatagramReceiveEnabled = (byte) (options.ReceiveDatagramCallback != null ? 1 : 0);
 
         QUIC_HANDLE* handle;
 

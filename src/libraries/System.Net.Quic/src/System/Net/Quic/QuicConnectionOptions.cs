@@ -6,6 +6,8 @@ using System.Threading;
 
 namespace System.Net.Quic;
 
+public delegate void ReceiveDatagramCallback(QuicConnection connection, ReadOnlySpan<byte> datagram);
+
 /// <summary>
 /// Shared options for both client (outbound) and server (inbound) <see cref="QuicConnection" />.
 /// </summary>
@@ -16,6 +18,8 @@ public abstract class QuicConnectionOptions
     /// </summary>
     internal QuicConnectionOptions()
     { }
+
+    public ReceiveDatagramCallback? ReceiveDatagramCallback { get; set; }
 
     /// <summary>
     /// The maximum number of concurrent bidirectional streams that the remote peer connection can create on an open connection.

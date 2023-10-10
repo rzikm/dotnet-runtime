@@ -23,6 +23,9 @@ namespace System.Net.Quic
     public sealed partial class QuicConnection : System.IAsyncDisposable
     {
         internal QuicConnection() { }
+        public int DatagramMaxSendLength { get { throw null; } }
+        public bool DatagramReceiveEnabled { get { throw null; } }
+        public bool DatagramSendEnabled { get { throw null; } }
         public static bool IsSupported { get { throw null; } }
         public System.Net.IPEndPoint LocalEndPoint { get { throw null; } }
         public System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get { throw null; } }
@@ -34,6 +37,7 @@ namespace System.Net.Quic
         public static System.Threading.Tasks.ValueTask<System.Net.Quic.QuicConnection> ConnectAsync(System.Net.Quic.QuicClientConnectionOptions options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
         public System.Threading.Tasks.ValueTask DisposeAsync() { throw null; }
         public System.Threading.Tasks.ValueTask<System.Net.Quic.QuicStream> OpenOutboundStreamAsync(System.Net.Quic.QuicStreamType type, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) { throw null; }
+        public System.Threading.Tasks.ValueTask SendDatagramAsync(System.ReadOnlyMemory<byte> buffer, System.Threading.CancellationToken cancellationToken = default) { throw null; }
         public override string ToString() { throw null; }
     }
     public abstract partial class QuicConnectionOptions
@@ -44,6 +48,7 @@ namespace System.Net.Quic
         public System.TimeSpan IdleTimeout { get { throw null; } set { } }
         public int MaxInboundBidirectionalStreams { get { throw null; } set { } }
         public int MaxInboundUnidirectionalStreams { get { throw null; } set { } }
+        public System.Net.Quic.ReceiveDatagramCallback? ReceiveDatagramCallback { get { throw null; } set { } }
     }
     public enum QuicError
     {
@@ -64,8 +69,8 @@ namespace System.Net.Quic
     {
         public QuicException(System.Net.Quic.QuicError error, long? applicationErrorCode, string message) { }
         public long? ApplicationErrorCode { get { throw null; } }
-        public long? TransportErrorCode { get { throw null; } }
         public System.Net.Quic.QuicError QuicError { get { throw null; } }
+        public long? TransportErrorCode { get { throw null; } }
     }
     public sealed partial class QuicListener : System.IAsyncDisposable
     {
@@ -135,4 +140,5 @@ namespace System.Net.Quic
         Unidirectional = 0,
         Bidirectional = 1,
     }
+    public delegate void ReceiveDatagramCallback(System.Net.Quic.QuicConnection connection, System.ReadOnlySpan<byte> datagram);
 }
