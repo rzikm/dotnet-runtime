@@ -441,7 +441,7 @@ public sealed partial class QuicConnection : IAsyncDisposable
         }
     }
 
-    public ValueTask SendDatagramAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> SendDatagramAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
 
@@ -459,24 +459,37 @@ public sealed partial class QuicConnection : IAsyncDisposable
         // No need to call anything since we already have a result, most likely an exception.
         if (valueTask.IsCompleted)
         {
-            return valueTask;
+            await valueTask.ConfigureAwait(false);
+            return false; // likely unreachable
         }
 
         if (buffer.IsEmpty)
         {
             _datagramSendTcs.TrySetResult();
+            await valueTask.ConfigureAwait(false);
+            return true;
         }
-        else
+
+        int res;
+        unsafe
         {
-            unsafe
-            {
-                _datagramBuffers.Initialize(buffer);
+            _datagramBuffers.Initialize(buffer);
 
-                ThrowHelper.ThrowIfMsQuicError(MsQuicApi.Api.DatagramSend(_handle, _datagramBuffers.Buffers, (uint)_datagramBuffers.Count, QUIC_SEND_FLAGS.NONE, IntPtr.Zero.ToPointer()));
-            }
+            res = MsQuicApi.Api.DatagramSend(_handle, _datagramBuffers.Buffers, (uint)_datagramBuffers.Count, QUIC_SEND_FLAGS.NONE, IntPtr.Zero.ToPointer());
         }
 
-        return valueTask;
+        if (res == QUIC_STATUS_INVALID_PARAMETER && buffer.Length > DatagramMaxSendLength)
+        {
+            // Datagram too big, report failure
+            _datagramSendTcs.TrySetResult();
+            await valueTask.ConfigureAwait(false);
+            return false;
+        }
+
+        ThrowHelper.ThrowIfMsQuicError(res);
+
+        await valueTask.ConfigureAwait(false);
+        return true; // todo needs to return false if datagram was cancelled due to MTU drop
     }
 
     /// <summary>

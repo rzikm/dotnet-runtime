@@ -37,14 +37,14 @@ public sealed class QuicConnectionDatagramTests : QuicTestBase
             AssertProperties(clientAdvertised, serverAdvertised, server);
             return Task.CompletedTask;
         },
-        clientOptions: clientOptions, 
+        clientOptions: clientOptions,
         listenerOptions: CreateQuicListenerOptions(serverOptions: serverOptions));
 
         static void AssertProperties(bool peerAdvertised, bool localAdvertised, QuicConnection connection)
         {
             Assert.Equal(peerAdvertised, connection.DatagramSendEnabled);
             Assert.Equal(localAdvertised, connection.DatagramReceiveEnabled);
-            
+
             if (peerAdvertised)
             {
                 Assert.True(connection.DatagramMaxSendLength > 0, "connection.DatagramMaxSendLength > 0");
@@ -67,12 +67,12 @@ public sealed class QuicConnectionDatagramTests : QuicTestBase
 
         return RunClientServer(client =>
         {
-           return Assert.ThrowsAsync<InvalidOperationException>(() => client.SendDatagramAsync(new byte[1]).AsTask());
+            return Assert.ThrowsAsync<InvalidOperationException>(() => client.SendDatagramAsync(new byte[1]).AsTask());
         }, server =>
         {
             return Assert.ThrowsAsync<InvalidOperationException>(() => server.SendDatagramAsync(new byte[1]).AsTask());
         },
-        clientOptions: clientOptions, 
+        clientOptions: clientOptions,
         listenerOptions: CreateQuicListenerOptions(serverOptions: serverOptions));
     }
 
@@ -101,7 +101,30 @@ public sealed class QuicConnectionDatagramTests : QuicTestBase
         {
             return server.SendDatagramAsync(datagram).AsTask();
         },
-        clientOptions: clientOptions, 
+        clientOptions: clientOptions,
+        listenerOptions: CreateQuicListenerOptions(serverOptions: serverOptions));
+    }
+
+    [Fact]
+    public Task DatagramSend_TooBig_Fails()
+    {
+        byte[] datagram = new byte[2000];
+        Random.Shared.NextBytes(datagram);
+
+        var clientOptions = CreateQuicClientOptions(new IPEndPoint(IPAddress.Loopback, 0));
+        clientOptions.ReceiveDatagramCallback = (_, datagram) => { };
+
+        var serverOptions = CreateQuicServerOptions();
+        serverOptions.ReceiveDatagramCallback = null;
+
+        return RunClientServer(client =>
+        {
+            return Task.CompletedTask;
+        }, server =>
+        {
+            return server.SendDatagramAsync(datagram).AsTask();
+        },
+        clientOptions: clientOptions,
         listenerOptions: CreateQuicListenerOptions(serverOptions: serverOptions));
     }
 }

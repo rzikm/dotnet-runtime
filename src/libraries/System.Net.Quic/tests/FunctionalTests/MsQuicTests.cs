@@ -728,7 +728,7 @@ namespace System.Net.Quic.Tests
 
             // Open one stream, second call should block
             await using var stream = await clientConnection.OpenOutboundStreamAsync(QuicStreamType.Unidirectional);
-            await stream.WriteAsync(new byte[64*1024], completeWrites: true);
+            await stream.WriteAsync(new byte[64 * 1024], completeWrites: true);
             await Assert.ThrowsAsync<TimeoutException>(() => clientConnection.OpenOutboundStreamAsync(QuicStreamType.Unidirectional).AsTask().WaitAsync(TimeSpan.FromSeconds(1)));
 
             await clientConnection.DisposeAsync();
