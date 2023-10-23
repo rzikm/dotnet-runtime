@@ -12,6 +12,7 @@ using System.Net.Quic.Implementations.Managed.Internal.Sockets;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
 using System.Net.Quic.Tests.Harness;
 using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Xunit;
@@ -46,6 +47,9 @@ namespace System.Net.Quic.Tests
     /// </remarks>
     public class ManualTransmissionQuicTestBase
     {
+        public const long DefaultCloseErrorCode = 789;
+        public const long DefaultStreamErrorCode = 654321;
+
         private const string CertificateFilePath = "Certs/cert.crt";
         private const string PrivateKeyFilePath = "Certs/cert.key";
 
@@ -84,8 +88,11 @@ namespace System.Net.Quic.Tests
                     ApplicationProtocols = new List<SslApplicationProtocol>()
                     {
                         new SslApplicationProtocol("quictest")
-                    }
+                    },
+                    ServerCertificate = X509Certificate2.CreateFromPemFile(CertificateFilePath, PrivateKeyFilePath),
                 },
+                DefaultStreamErrorCode = DefaultStreamErrorCode,
+                DefaultCloseErrorCode = DefaultCloseErrorCode,
             };
             ListenerOptions = new QuicListenerOptions
             {
@@ -105,9 +112,12 @@ namespace System.Net.Quic.Tests
                     ApplicationProtocols = new List<SslApplicationProtocol>()
                     {
                         new SslApplicationProtocol("quictest")
-                    }
+                    },
+                    RemoteCertificateValidationCallback = delegate { return true; },
                 },
-                RemoteEndPoint = new IPEndPoint(IPAddress.Loopback, Server.LocalEndPoint.Port)
+                RemoteEndPoint = new IPEndPoint(IPAddress.Loopback, Server.LocalEndPoint.Port),
+                DefaultStreamErrorCode = DefaultStreamErrorCode,
+                DefaultCloseErrorCode = DefaultCloseErrorCode,
             };
             Client = CreateClient(ClientOptions);
 
@@ -134,7 +144,7 @@ namespace System.Net.Quic.Tests
         private static ManagedQuicConnection CreateServer(QuicServerConnectionOptions options, QuicListenerOptions listenerOptions)
         {
             var ctx = new QuicServerSocketContext(new IPEndPoint(IPAddress.Any, 0),
-                listenerOptions, Channel.CreateUnbounded<ManagedQuicConnection>().Writer, MockTlsFactory.Instance);
+                listenerOptions, Channel.CreateUnbounded<object>().Writer, MockTlsFactory.Instance);
             Span<byte> odcid = stackalloc byte[20];
             return new ManagedQuicConnection(options, new QuicConnectionContext(ctx, _dummyListenEndpoint, odcid, MockTlsFactory.Instance), _dummyListenEndpoint, odcid, MockTlsFactory.Instance);
         }
@@ -150,7 +160,7 @@ namespace System.Net.Quic.Tests
                 SendFlight(Client, Server);
                 SendFlight(Server, Client);
                 flights++;
-            } while (!Client.Connected && !Server.Connected && flights < 10);
+            } while ((!Client.Connected || !Server.Connected) && flights < 10);
 
             Assert.True(Client.Connected);
             Assert.True(Server.Connected);
@@ -358,7 +368,7 @@ namespace System.Net.Quic.Tests
         ///  </remarks>
         internal void SendPacket(ManagedQuicConnection source, ManagedQuicConnection destination, PacketBase packet)
         {
-            SendFlight(source, destination, new []{packet});
+            SendFlight(source, destination, new[] { packet });
         }
 
         /// <summary>
@@ -470,7 +480,7 @@ namespace System.Net.Quic.Tests
 
         internal void LogFlightPackets(PacketBase packet, ManagedQuicConnection sender, bool lost = false)
         {
-            LogFlightPackets(new []{packet}, sender, lost);
+            LogFlightPackets(new[] { packet }, sender, lost);
         }
 
         internal QuicException AssertThrowsQuicException(QuicError expectedError, Action action) =>
