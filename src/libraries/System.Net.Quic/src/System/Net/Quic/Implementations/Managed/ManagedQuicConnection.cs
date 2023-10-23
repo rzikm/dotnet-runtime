@@ -236,7 +236,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         private Exception? _socketContextException;
 
-        private QuicConnectionOptions _connectionOptions;
+        internal QuicConnectionOptions _connectionOptions;
 
         /// <summary>
         ///     Requests sending PING frame to the peer, requiring the peer to send acknowledgement back.
@@ -962,7 +962,7 @@ namespace System.Net.Quic.Implementations.Managed
         private static Exception MakeConnectionAbortedException(QuicTransportError error)
         {
             // check for TLS Alerts
-            if (error.IsQuicError && (int) error.ErrorCode > 0x100)
+            if (error.IsQuicError && (int)error.ErrorCode > 0x100)
             {
                 return new AuthenticationException("$TLS Alert :{(TlsAlert) (error.ErrorCode - 0x100)}");
             }
