@@ -45,7 +45,7 @@ public partial class QuicConnection : IAsyncDisposable
     /// The current implementation depends on <see href="https://github.com/microsoft/msquic">MsQuic</see> native library, this property checks its presence (Linux machines).
     /// It also checks whether TLS 1.3, requirement for QUIC protocol, is available and enabled (Windows machines).
     /// </remarks>
-    public static bool IsSupported => MsQuicApi.IsQuicSupported;
+    public static bool IsSupported => Environment.GetEnvironmentVariable("DOTNET_MANAGED_QUIC") == "1" ? true : MsQuicApi.IsQuicSupported;
 
     /// <summary>
     /// Creates a new <see cref="QuicConnection"/> and connects it to the peer.
@@ -55,6 +55,11 @@ public partial class QuicConnection : IAsyncDisposable
     /// <returns>An asynchronous task that completes with the connected connection.</returns>
     public static ValueTask<QuicConnection> ConnectAsync(QuicClientConnectionOptions options, CancellationToken cancellationToken = default)
     {
+        if (Environment.GetEnvironmentVariable("DOTNET_MANAGED_QUIC") == "1")
+        {
+            return Implementations.Managed.ManagedQuicConnection.ConnectAsync(options, cancellationToken);
+        }
+
         if (!IsSupported)
         {
             throw new PlatformNotSupportedException(SR.Format(SR.SystemNetQuic_PlatformNotSupported, MsQuicApi.NotSupportedReason));

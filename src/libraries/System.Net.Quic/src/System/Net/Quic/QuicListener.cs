@@ -36,7 +36,7 @@ public partial class QuicListener : IAsyncDisposable
     /// The current implementation depends on <see href="https://github.com/microsoft/msquic">MsQuic</see> native library, this property checks its presence (Linux machines).
     /// It also checks whether TLS 1.3, requirement for QUIC protocol, is available and enabled (Windows machines).
     /// </remarks>
-    public static bool IsSupported => MsQuicApi.IsQuicSupported;
+    public static bool IsSupported => Environment.GetEnvironmentVariable("DOTNET_MANAGED_QUIC") == "1" ? true : MsQuicApi.IsQuicSupported;
 
     /// <summary>
     /// Creates a new <see cref="QuicListener"/> and starts listening for new connections.
@@ -46,6 +46,11 @@ public partial class QuicListener : IAsyncDisposable
     /// <returns>An asynchronous task that completes with the started listener.</returns>
     public static ValueTask<QuicListener> ListenAsync(QuicListenerOptions options, CancellationToken cancellationToken = default)
     {
+        if (Environment.GetEnvironmentVariable("DOTNET_MANAGED_QUIC") == "1")
+        {
+            return Implementations.Managed.ManagedQuicListener.ListenAsync(options, cancellationToken);
+        }
+
         if (!IsSupported)
         {
             throw new PlatformNotSupportedException(SR.Format(SR.SystemNetQuic_PlatformNotSupported, MsQuicApi.NotSupportedReason));
@@ -63,6 +68,7 @@ public partial class QuicListener : IAsyncDisposable
 
         return ValueTask.FromResult(listener);
     }
+
 
     /// <summary>
     /// Handle to MsQuic listener object.
