@@ -339,8 +339,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (CanRead)
             {
-                // TODO-RZ: should we use this error code?
-                ReceiveStream!.RequestAbort(0);
+                ReceiveStream!.RequestAbort(_connection._connectionOptions.DefaultStreamErrorCode);
                 _connection.OnStreamStateUpdated(this);
             }
 
@@ -364,8 +363,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (CanRead)
             {
-                // TODO-RZ: should we use this error code?
-                ReceiveStream!.RequestAbort(0);
+                ReceiveStream!.RequestAbort(_connection._connectionOptions.DefaultStreamErrorCode);
                 _connection.OnStreamStateUpdated(this);
             }
         }
