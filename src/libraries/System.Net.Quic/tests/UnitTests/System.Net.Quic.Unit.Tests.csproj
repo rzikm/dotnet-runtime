@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <TargetFrameworks>$(NetCoreAppCurrent)-windows;$(NetCoreAppCurrent)-Linux</TargetFrameworks>
+    <TargetFrameworks>$(NetCoreAppCurrent)-windows;$(NetCoreAppCurrent)-linux</TargetFrameworks>
     <StringResourcesPath>../../src/Resources/Strings.resx</StringResourcesPath>
     <Nullable>enable</Nullable>
     <EnableLibraryImportGenerator>true</EnableLibraryImportGenerator>
@@ -30,21 +30,65 @@
     <Compile Include="$(CommonPath)System\Net\MultiArrayBuffer.cs" Link="Common\System\Net\MultiArrayBuffer.cs" />
     <Compile Include="$(CommonPath)System\Net\StreamBuffer.cs" Link="Common\System\Net\StreamBuffer.cs" />
     <Compile Include="$(CommonPath)System\Net\Logging\NetEventSource.Common.cs" Link="Common\System\Net\Logging\NetEventSource.Common.cs" />
+    <Compile Include="$(CommonPath)System\Net\Security\TargetHostNameHelper.cs" Link="Common\System\Net\Security\TargetHostNameHelper.cs" />
+    <Compile Include="$(CommonPath)System\Net\IPv4AddressHelper.Common.cs" Link="System\Net\IPv4AddressHelper.Common.cs" />
+    <Compile Include="$(CommonPath)System\Net\IPv6AddressHelper.Common.cs" Link="System\Net\IPv6AddressHelper.Common.cs" />
+    <Compile Include="$(CommonPath)System\Net\IPAddressParserStatics.cs" Link="Common\System\Net\IPAddressParserStatics.cs" />
   </ItemGroup>
   <!-- Windows specific files -->
-  <ItemGroup Condition=" '$(TargetsWindows)' == 'true'">
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'windows'">
     <Compile Include="$(CommonPath)Interop\Windows\Interop.Libraries.cs" Link="Common\Interop\Windows\Interop.Libraries.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.CERT_CONTEXT.cs" Link="Common\Interop\Windows\Crypt32\Interop.CERT_CONTEXT.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.CERT_INFO.cs" Link="Common\Interop\Windows\Crypt32\Interop.CERT_INFO.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.CERT_PUBLIC_KEY_INFO.cs" Link="Common\Interop\Windows\Crypt32\Interop.CERT_PUBLIC_KEY_INFO.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.CRYPT_ALGORITHM_IDENTIFIER.cs" Link="Common\Interop\Windows\Crypt32\Interop.Interop.CRYPT_ALGORITHM_IDENTIFIER.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.CRYPT_BIT_BLOB.cs" Link="Common\Interop\Windows\Crypt32\Interop.Interop.CRYPT_BIT_BLOB.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.DATA_BLOB.cs" Link="Common\Interop\Windows\Crypt32\Interop.DATA_BLOB.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.certificates.cs" Link="Common\Interop\Windows\Crypt32\Interop.certificates.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.certificates_types.cs" Link="Common\Interop\Windows\Crypt32\Interop.certificates_types.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.CertEnumCertificatesInStore.cs" Link="Common\Interop\Windows\Crypt32\Interop.CertEnumCertificatesInStore.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\Crypt32\Interop.MsgEncodingType.cs" Link="Common\Interop\Windows\Crypt32\Interop.Interop.MsgEncodingType.cs" />
+    <Compile Include="$(CommonPath)Interop\Windows\SChannel\Interop.SECURITY_STATUS.cs" Link="Common\Interop\Windows\SChannel\Interop.SECURITY_STATUS.cs" />
+    <Compile Include="$(CommonPath)System\Net\Security\CertificateValidation.Windows.cs" Link="Common\System\Net\Security\CertificateValidation.Windows.cs" />
+    <Compile Include="$(CommonPath)System\Net\SocketAddressPal.Windows.cs" Link="Common\System\Net\SocketAddressPal.Windows.cs" />
+  </ItemGroup>
+  <!-- Unix specific files -->
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'linux' or '$(TargetPlatformIdentifier)' == 'osx' or '$(TargetPlatformIdentifier)' == 'freebsd'">
+    <Compile Include="$(CommonPath)Interop\Unix\Interop.Libraries.cs" Link="Common\Interop\Unix\Interop.Libraries.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\Interop.Errors.cs" Link="Common\Interop\Unix\Interop.Errors.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.ASN1.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.ASN1.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.SocketAddress.cs" Link="Common\Interop\Unix\System.Native\Interop.SocketAddress.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.BIO.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.BIO.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.ERR.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.ERR.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.Initialization.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.Initialization.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.Crypto.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.Crypto.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.X509.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.X509.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.X509Name.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.X509Name.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.X509Ext.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.X509Ext.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.X509Stack.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.X509Stack.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Security.Cryptography.Native\Interop.X509StoreCtx.cs" Link="Common\Interop\Unix\System.Security.Cryptography.Native\Interop.X509StoreCtx.cs" />
+    <Compile Include="$(CommonPath)Interop\Unix\System.Net.Security.Native\Interop.Initialization.cs" Link="Common\Interop\Unix\System.Net.Security.Native\Interop.Initialization.cs" />
+    <Compile Include="$(CommonPath)Microsoft\Win32\SafeHandles\SafeX509Handles.Unix.cs" Link="Common\Microsoft\Win32\SafeHandles\SafeX509Handles.Unix.cs" />
+    <Compile Include="$(CommonPath)Microsoft\Win32\SafeHandles\X509ExtensionSafeHandles.Unix.cs" Link="Common\Microsoft\Win32\SafeHandles\X509ExtensionSafeHandles.Unix.cs" />
+    <Compile Include="$(CommonPath)Microsoft\Win32\SafeHandles\SafeInteriorHandle.cs" Link="Common\Microsoft\Win32\SafeHandles\SafeInteriorHandle.cs" />
+    <Compile Include="$(CommonPath)Microsoft\Win32\SafeHandles\SafeBioHandle.Unix.cs" Link="Common\Microsoft\Win32\SafeHandles\SafeBioHandle.Unix.cs" />
+    <Compile Include="$(CommonPath)Microsoft\Win32\SafeHandles\Asn1SafeHandles.Unix.cs" Link="Common\Microsoft\Win32\SafeHandles\Asn1SafeHandles.Unix.cs" />
+    <Compile Include="$(CommonPath)Microsoft\Win32\SafeHandles\SafeHandleCache.cs" Link="Common\Microsoft\Win32\SafeHandles\SafeHandleCache.cs" />
+    <Compile Include="$(CommonPath)System\Net\SocketAddressPal.Unix.cs" Link="Common\System\Net\SocketAddressPal.Unix.cs" />
   </ItemGroup>
   <!-- Linux specific files -->
-  <ItemGroup Condition="'$(TargetsLinux)' == 'true' or '$(TargetsBrowser)' == 'true' ">
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'linux'">
+    <Compile Include="$(CommonPath)System\Net\Security\CertificateValidation.Unix.cs" Link="Common\System\Net\Security\CertificateValidation.Unix.cs" />
     <Compile Include="$(CommonPath)Interop\Linux\Interop.Libraries.cs" Link="Common\Interop\Linux\Interop.Libraries.cs" />
   </ItemGroup>
   <!-- FreeBSD specific files -->
-  <ItemGroup Condition="'$(TargetsFreeBSD)' == 'true' ">
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'freebsd' ">
+    <Compile Include="$(CommonPath)System\Net\Security\CertificateValidation.Unix.cs" Link="Common\System\Net\Security\CertificateValidation.Unix.cs" />
     <Compile Include="$(CommonPath)Interop\FreeBSD\Interop.Libraries.cs" Link="Common\Interop\FreeBSD\Interop.Libraries.cs" />
   </ItemGroup>
   <!-- OSX specific files -->
-  <ItemGroup Condition=" '$(TargetsOSX)' == 'true' or '$(TargetsiOS)' == 'true' or '$(TargetstvOS)' == 'true'">
+  <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'osx'">
+    <Compile Include="$(CommonPath)System\Net\Security\CertificateValidation.OSX.cs" Link="Common\System\Net\Security\CertificateValidation.OSX.cs" />
     <Compile Include="$(CommonPath)Interop\OSX\Interop.Libraries.cs" Link="Common\Interop\OSX\Interop.Libraries.cs" />
   </ItemGroup>
   <ItemGroup>
