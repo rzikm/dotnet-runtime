@@ -58,6 +58,16 @@ namespace System.Net.Quic.Implementations.Managed
         private bool MaxDataFrameSent { get; set; }
 
         /// <summary>
+        ///     The highest StreamId sent in <see cref="MaxStreamsFrame"/> for unidirectional streams there.
+        /// </summary>
+        private long MaxStreamsUniFrameSent { get; set; }
+
+        /// <summary>
+        ///     The highest StreamId sent in <see cref="MaxStreamsFrame"/> for bidirectional streams there.
+        /// </summary>
+        private long MaxStreamsBidiFrameSent { get; set; }
+
+        /// <summary>
         ///     Sum of maximum offsets of data sent across all streams.
         /// </summary>
         private long SentData { get; set; }
@@ -159,9 +169,11 @@ namespace System.Net.Quic.Implementations.Managed
 
         internal void OnStreamDataWritten(ManagedQuicStream stream)
         {
-            // no need to ping if the thread is already spinning
-            if (stream.SendStream!.IsFlushable)
+            // We can't check IsFlushable because we are running on user thread and
+            // we are racing with socket thread on internal structures.
+            if (stream.SendStream!.UnsentOffset < stream.SendStream.MaxData || stream.SendStream.SizeKnown)
             {
+                // no need to ping if the thread is already spinning
                 var doPing = _streams.MarkFlushable(stream);
 
                 if (doPing)
@@ -174,7 +186,7 @@ namespace System.Net.Quic.Implementations.Managed
         internal void OnStreamDataRead(ManagedQuicStream stream, int bytesRead)
         {
             _receiveLimits.AddMaxData(bytesRead);
-            if (stream.ReceiveStream!.ShouldUpdateMaxData())
+            if (stream.ReceiveStream!.ShouldUpdateMaxData() || stream.ReceiveStream.CanReleaseFlowControl)
             {
                 OnStreamStateUpdated(stream);
             }
@@ -184,6 +196,24 @@ namespace System.Net.Quic.Implementations.Managed
         {
             _streams.MarkForUpdate(stream);
             _socketContext!.WakeUp();
+        }
+
+        internal void ReleaseStream(ManagedQuicStream stream)
+        {
+            if (!StreamHelpers.IsLocallyInitiated(IsServer, stream.Id) && !stream.FlowControlReleased)
+            {
+                // remote initiated stream closed, increase streams limit.
+                if (StreamHelpers.IsBidirectional(stream.Id))
+                {
+                    _receiveLimits.UpdateMaxStreamsBidi(_receiveLimits.MaxStreamsBidi + 1);
+                }
+                else
+                {
+                    _receiveLimits.UpdateMaxStreamsUni(_receiveLimits.MaxStreamsUni + 1);
+                }
+
+                stream.FlowControlReleased = true;
+            }
         }
     }
 }

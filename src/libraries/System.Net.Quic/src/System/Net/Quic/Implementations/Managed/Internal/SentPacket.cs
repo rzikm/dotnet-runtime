@@ -103,6 +103,18 @@ namespace System.Net.Quic.Implementations.Managed.Internal
         internal bool HandshakeDoneSent { get; set; }
 
         /// <summary>
+        ///     If not null, contains the max StreamId sent in the MAX_STREAMS frame for bidirectional streams.
+        /// </summary>
+        /// <value></value>
+        internal long? MaxStreamsUni { get; set; }
+
+        /// <summary>
+        ///     If not null, contains the max StreamId sent in the MAX_STREAMS frame for bidirectional streams.
+        /// </summary>
+        /// <value></value>
+        internal long? MaxStreamsBidi { get; set; }
+
+        /// <summary>
         ///     Number of bytes sent, includes QUIC header and payload, but not UDP and IP overhead.
         /// </summary>
         internal int BytesSent { get; set; }
@@ -134,6 +146,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             StreamsReset.Clear();
             StreamsStopped.Clear();
             MaxDataFrame = null;
+            MaxStreamsBidi = null;
+            MaxStreamsUni = null;
 
             HandshakeDoneSent = false;
             InFlight = false;

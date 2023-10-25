@@ -28,6 +28,18 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         /// </summary>
         internal RecvStreamState StreamState { get; private set; }
 
+        /// <summary>
+        ///     True if the stream is in a state where FlowControl resources can be released
+        /// </summary>
+        internal bool CanReleaseFlowControl => StreamState switch
+        {
+            RecvStreamState.DataRead => true,
+            RecvStreamState.WantStopSending => true,
+            RecvStreamState.StopSendingSent => true,
+            RecvStreamState.ResetReceived => true,
+            _ => false
+        };
+
         internal TaskCompletionSource ReceiveClosed { get; private set; } = new TaskCompletionSource();
 
         /// <summary>

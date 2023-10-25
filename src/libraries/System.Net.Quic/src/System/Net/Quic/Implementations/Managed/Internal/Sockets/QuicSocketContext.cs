@@ -27,6 +27,10 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
         private readonly Socket _socket;
 
+        public IPEndPoint LocalEndPoint => _localEndPoint ?? (_socket.LocalEndPoint as IPEndPoint)!;
+
+        public IPEndPoint? RemoteEndPoint => (_socket.RemoteEndPoint as IPEndPoint);
+
         protected QuicSocketContext(IPEndPoint? localEndPoint, EndPoint? remoteEndPoint, bool isServer)
         {
             _socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
@@ -70,8 +74,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 #endif
         }
 
-        public IPEndPoint LocalEndPoint => _localEndPoint ?? (_socket.LocalEndPoint as IPEndPoint)!;
-
         public void Start()
         {
             if (_started)
@@ -81,7 +83,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
             _started = true;
 
-            _ = Task.Run(async () => {
+            _ = Task.Run(async () =>
+            {
                 while (!_socketTaskCts.IsCancellationRequested)
                 {
                     // use fresh buffer for each receive, since the previous one is still being processed

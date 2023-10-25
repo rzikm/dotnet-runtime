@@ -38,7 +38,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal
             {
                 InitialMaxStreamsBidi = maxBidiStreams,
                 InitialMaxStreamsUni = maxUniStreams,
-                MaxIdleTimeout = idleTimeout.Ticks / TimeSpan.TicksPerMillisecond,
+                MaxIdleTimeout = idleTimeout < TimeSpan.Zero
+                    ? 0L
+                    : idleTimeout.Ticks / TimeSpan.TicksPerMillisecond,
                 InitialMaxData = DefaultMaxData,
                 InitialMaxStreamDataUni = DefaultMaxStreamData,
                 InitialMaxStreamDataBidiLocal = DefaultMaxStreamData,
