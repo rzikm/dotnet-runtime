@@ -46,6 +46,11 @@ namespace System.Net.Quic.Implementations.Managed
         private readonly ManagedQuicConnection _connection;
 
         /// <summary>
+        ///     True if the flow control budget for this stream has been released. Should be only set after both stream directions have been closed.
+        /// </summary>
+        internal bool FlowControlReleased { get; set; }
+
+        /// <summary>
         ///     If the stream can receive data, contains the receiving part of the stream. Otherwise null.
         /// </summary>
         internal ReceiveStream? ReceiveStream { get; }
@@ -157,9 +162,8 @@ namespace System.Net.Quic.Implementations.Managed
         internal void AbortRead(long errorCode)
         {
             ThrowIfDisposed();
-            ThrowIfNotReadable();
-
             if (ReceiveStream!.Error != null) return;
+            ThrowIfNotReadable();
 
             ReceiveStream.RequestAbort(errorCode);
             _connection.OnStreamStateUpdated(this);
@@ -168,6 +172,7 @@ namespace System.Net.Quic.Implementations.Managed
         internal void AbortWrite(long errorCode)
         {
             ThrowIfDisposed();
+            if (SendStream!.Error != null) return;
             ThrowIfNotWritable();
 
             if (SendStream!.Error != null) return;
@@ -189,15 +194,16 @@ namespace System.Net.Quic.Implementations.Managed
             ThrowIfDisposed();
             ThrowIfConnectionError();
             ThrowIfNotWritable();
-            SendStream!.Enqueue(buffer);
+
+            bool didFlush = SendStream!.Enqueue(buffer);
 
             if (completeWrites)
             {
                 SendStream.MarkEndOfData();
-                SendStream.FlushChunk();
+                didFlush |= SendStream.FlushChunk();
             }
 
-            if (SendStream.WrittenBytes - buffer.Length < SendStream.MaxData)
+            if (didFlush)
             {
                 _connection.OnStreamDataWritten(this);
             }
@@ -309,8 +315,10 @@ namespace System.Net.Quic.Implementations.Managed
             ThrowIfConnectionError();
             ThrowIfNotWritable();
 
-            SendStream!.FlushChunk();
-            _connection.OnStreamDataWritten(this);
+            if (SendStream!.FlushChunk())
+            {
+                _connection.OnStreamDataWritten(this);
+            }
         }
 
         public override async Task FlushAsync(CancellationToken cancellationToken)
@@ -319,8 +327,10 @@ namespace System.Net.Quic.Implementations.Managed
             ThrowIfConnectionError();
             ThrowIfNotWritable();
 
-            await SendStream!.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
-            _connection.OnStreamDataWritten(this);
+            if (await SendStream!.FlushChunkAsync(cancellationToken).ConfigureAwait(false))
+            {
+                _connection.OnStreamDataWritten(this);
+            }
         }
 
         protected override void Dispose(bool disposing)
@@ -333,8 +343,10 @@ namespace System.Net.Quic.Implementations.Managed
             if (CanWrite)
             {
                 SendStream!.MarkEndOfData();
-                SendStream!.FlushChunk();
-                _connection.OnStreamDataWritten(this);
+                if (SendStream!.FlushChunk())
+                {
+                    _connection.OnStreamDataWritten(this);
+                }
             }
 
             if (CanRead)
@@ -357,8 +369,10 @@ namespace System.Net.Quic.Implementations.Managed
             if (CanWrite)
             {
                 SendStream!.MarkEndOfData();
-                await SendStream!.FlushChunkAsync().ConfigureAwait(false);
-                _connection.OnStreamDataWritten(this);
+                if (await SendStream!.FlushChunkAsync(CancellationToken.None).ConfigureAwait(false))
+                {
+                    _connection.OnStreamDataWritten(this);
+                }
             }
 
             if (CanRead)
@@ -372,15 +386,15 @@ namespace System.Net.Quic.Implementations.Managed
 
         private async ValueTask WriteAsyncInternal(ReadOnlyMemory<byte> buffer, bool completeWrites, CancellationToken cancellationToken)
         {
-            await SendStream!.EnqueueAsync(buffer, cancellationToken).ConfigureAwait(false);
+            bool didFlush = await SendStream!.EnqueueAsync(buffer, cancellationToken).ConfigureAwait(false);
 
             if (completeWrites)
             {
                 SendStream.MarkEndOfData();
-                await SendStream.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
+                didFlush |= await SendStream.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            if (SendStream.WrittenBytes - buffer.Length < SendStream.MaxData)
+            if (didFlush)
             {
                 _connection.OnStreamDataWritten(this);
             }

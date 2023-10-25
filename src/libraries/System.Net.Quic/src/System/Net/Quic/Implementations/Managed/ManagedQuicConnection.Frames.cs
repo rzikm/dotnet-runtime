@@ -740,8 +740,13 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (packetType == PacketType.OneRtt)
             {
+                // must be before MaxStreams because it potentially increases the limit
                 WriteStreamUpdateFrames(writer, context);
+
+                WriteMaxStreamsDataFrames(writer, context);
                 WriteMaxDataFrame(writer, context);
+
+                // stream frames should be last since they fill up the remaining space
                 WriteStreamFrames(writer, context);
             }
 
@@ -907,11 +912,58 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
+        private void WriteMaxStreamsDataFrames(QuicWriter writer, QuicSocketContext.SendContext context)
+        {
+            // The strategy is to have only one MAX_STREAMS frame per type in flight with the
+            // given value. When max streams increases, we immediately send a new one to unblock
+            // the peer. If the packet gets lost and no limit increase happens meanwhile, the
+            // MaxStreams{Uni|Bidi}FrameSent property gets decremented to trigger the transfer again.
+
+            ref var limits = ref _receiveLimits;
+
+            if (MaxStreamsUniFrameSent < limits.MaxStreamsUni)
+            {
+                var frame = new MaxStreamsFrame(limits.MaxStreamsUni, false);
+                if (writer.BytesAvailable < frame.GetSerializedLength())
+                {
+                    return;
+                }
+
+                MaxStreamsFrame.Write(writer, frame);
+                _trace?.OnMaxStreamsFrame(frame);
+                context.SentPacket.MaxStreamsUni = limits.MaxStreamsUni;
+                MaxStreamsUniFrameSent = limits.MaxStreamsUni;
+            }
+
+            if (MaxStreamsBidiFrameSent < limits.MaxStreamsBidi)
+            {
+                var frame = new MaxStreamsFrame(limits.MaxStreamsBidi, true);
+                if (writer.BytesAvailable < frame.GetSerializedLength())
+                {
+                    return;
+                }
+
+                MaxStreamsFrame.Write(writer, frame);
+                _trace?.OnMaxStreamsFrame(frame);
+                context.SentPacket.MaxStreamsBidi = limits.MaxStreamsBidi;
+                MaxStreamsBidiFrameSent = limits.MaxStreamsBidi;
+            }
+        }
+
         private void WriteStreamUpdateFrames(QuicWriter writer, QuicSocketContext.SendContext context)
         {
             ManagedQuicStream? stream;
             while (writer.BytesAvailable > 0 && (stream = _streams.GetFirstStreamForUpdate()) != null)
             {
+                // potentially increase stream limits
+                if (!StreamHelpers.IsLocallyInitiated(IsServer, stream.Id) &&
+                    !stream.FlowControlReleased &&
+                    (stream.ReceiveStream?.CanReleaseFlowControl ?? true) &&
+                    (stream.SendStream?.CanReleaseFlowControl ?? true))
+                {
+                    ReleaseStream(stream);
+                }
+
                 if (!WriteStreamMaxDataFrame(writer, stream, context) ||
                     !WriteStopSendingFrame(writer, stream, context) ||
                     !WriteResetStreamFrame(writer, stream, context))

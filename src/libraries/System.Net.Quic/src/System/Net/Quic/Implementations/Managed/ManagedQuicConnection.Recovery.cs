@@ -34,6 +34,11 @@ namespace System.Net.Quic.Implementations.Managed
 
                     if (buffer.StreamState == SendStreamState.DataReceived)
                     {
+                        if (stream.ReceiveStream?.CanReleaseFlowControl ?? true)
+                        {
+                            ReleaseStream(stream);
+                        }
+
                         stream.NotifyShutdownWriteCompleted();
                     }
                 }
@@ -48,13 +53,28 @@ namespace System.Net.Quic.Implementations.Managed
 
             foreach (long streamId in packet.StreamsReset)
             {
-                GetStream(streamId).SendStream!.OnResetAcked();
+                var stream = GetStream(streamId);
+                stream.SendStream!.OnResetAcked();
+                if (stream.SendStream!.CanReleaseFlowControl && (stream.ReceiveStream?.CanReleaseFlowControl ?? true))
+                {
+                    ReleaseStream(stream);
+                }
             }
 
             if (packet.MaxDataFrame != null)
             {
                 MaxDataFrameSent = false;
                 _receiveLimitsAtPeer.UpdateMaxData(packet.MaxDataFrame.Value.MaximumData);
+            }
+
+            if (packet.MaxStreamsUni != null)
+            {
+                _receiveLimitsAtPeer.UpdateMaxStreamsUni(packet.MaxStreamsUni!.Value);
+            }
+
+            if (packet.MaxStreamsBidi != null)
+            {
+                _receiveLimitsAtPeer.UpdateMaxStreamsBidi(packet.MaxStreamsBidi!.Value);
             }
 
             if (packet.HandshakeDoneSent)
@@ -120,7 +140,7 @@ namespace System.Net.Quic.Implementations.Managed
 
             foreach (long streamId in packet.StreamsStopped)
             {
-                var stream= GetStream(streamId);
+                var stream = GetStream(streamId);
                 stream.ReceiveStream!.OnStopSendingLost();
                 _streams.MarkForUpdate(stream);
             }
@@ -128,6 +148,16 @@ namespace System.Net.Quic.Implementations.Managed
             if (packet.MaxDataFrame != null)
             {
                 MaxDataFrameSent = false;
+            }
+
+            // if we lost packet with highest value, bump the value down to trigger sending the frame again
+            if (packet.MaxStreamsUni != null && packet.MaxStreamsUni == MaxStreamsUniFrameSent)
+            {
+                MaxStreamsUniFrameSent--;
+            }
+            if (packet.MaxStreamsBidi != null && packet.MaxStreamsBidi == MaxStreamsBidiFrameSent)
+            {
+                MaxStreamsBidiFrameSent--;
             }
         }
     }

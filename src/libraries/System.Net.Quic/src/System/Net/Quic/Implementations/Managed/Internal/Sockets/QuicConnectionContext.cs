@@ -23,7 +23,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         private readonly Channel<DatagramInfo> _recvQueue = Channel.CreateUnbounded<DatagramInfo>(
             new UnboundedChannelOptions
             {
-                SingleReader = true, SingleWriter = true, AllowSynchronousContinuations = false
+                SingleReader = true,
+                SingleWriter = true,
+                AllowSynchronousContinuations = false
             });
 
         private readonly QuicSocketContext.SendContext _sendContext;
@@ -42,7 +44,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         {
             _parent = parent;
             // TODO-RZ: move processing of first packet to Listener and create connection context only after we get the QuicServerConnectionOptions.
-            Connection = new ManagedQuicConnection(GetServerConnectionOptions(parent), this, remoteEndpoint, odcid, tlsFactory);
+            Connection = new ManagedQuicConnection(this, remoteEndpoint, odcid, tlsFactory);
             Connection.SetSocketContext(this);
 
             // if handshake fails, we need to propagate the error to the listener.AcceptConnectionAsync
@@ -61,11 +63,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             _recvContext = new QuicSocketContext.RecvContext(sentPacketPool);
         }
 
-        public static QuicServerConnectionOptions GetServerConnectionOptions(QuicServerSocketContext parent)
+        public QuicServerConnectionOptions GetServerConnectionOptions(ManagedQuicConnection connection)
         {
             try
             {
-                return parent.ListenerOptions.ConnectionOptionsCallback(null!, default, default).AsTask().GetAwaiter().GetResult();
+                return ((QuicServerSocketContext)_parent).ListenerOptions.ConnectionOptionsCallback(connection, default, default).AsTask().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -92,6 +94,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         ///     Local endpoint of the socket backing the background processing.
         /// </summary>
         public IPEndPoint LocalEndPoint => _parent.LocalEndPoint;
+
+        /// <summary>
+        ///     Remote endpoint of the socket backing the background processing.
+        /// </summary>
+        public IPEndPoint? RemoteEndPoint => _parent.RemoteEndPoint;
 
         private void DoReceiveDatagram(DatagramInfo datagram)
         {

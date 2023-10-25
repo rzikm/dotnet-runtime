@@ -25,6 +25,18 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         internal SendStreamState StreamState { get; private set; }
 
         /// <summary>
+        ///     True if the stream is in terminal state and no state changes are possible.
+        /// </summary>
+        internal bool CanReleaseFlowControl => StreamState switch
+        {
+            SendStreamState.DataReceived => true,
+            SendStreamState.WantReset => true,
+            SendStreamState.ResetSent => true,
+            SendStreamState.ResetReceived => true,
+            _ => false
+        };
+
+        /// <summary>
         ///     Ranges of bytes acked by the peer.
         /// </summary>
         private readonly RangeSet _acked = new RangeSet();
@@ -212,12 +224,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         ///     Queues the not yet full chunk of stream into flush queue, blocking when control flow limit is not
         ///     sufficient.
         /// </summary>
-        internal async ValueTask FlushChunkAsync(CancellationToken cancellationToken = default)
+        internal async ValueTask<bool> FlushChunkAsync(CancellationToken cancellationToken = default)
         {
             if (_toBeQueuedChunk.Length == 0)
             {
                 // nothing to do
-                return;
+                return false;
             }
 
             var buffer = await RentBufferAsync(cancellationToken).ConfigureAwait(false);
@@ -226,18 +238,20 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
             _toSendChannel.Writer.TryWrite(tmp);
             Interlocked.Add(ref _bytesInChannel, tmp.Length);
+
+            return true;
         }
 
         /// <summary>
         ///     Queues the not yet full chunk of stream into flush queue, blocking when control flow limit is not
         ///     sufficient.
         /// </summary>
-        internal void FlushChunk()
+        internal bool FlushChunk()
         {
             if (_toBeQueuedChunk.Length == 0)
             {
                 // nothing to do
-                return;
+                return false;
             }
 
             var buffer = RentBuffer();
@@ -246,6 +260,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
             _toSendChannel.Writer.TryWrite(tmp);
             Interlocked.Add(ref _bytesInChannel, tmp.Length);
+
+            return true;
         }
 
         /// <summary>
@@ -273,9 +289,11 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             MaxData = Math.Max(MaxData, value);
         }
 
-        internal async ValueTask EnqueueAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        internal async ValueTask<bool> EnqueueAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             Debug.Assert(!SizeKnown);
+
+            bool hasFlushed = false;
 
             while (buffer.Length > 0)
             {
@@ -287,20 +305,25 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
                 if (_toBeQueuedChunk.Length == _toBeQueuedChunk.Buffer!.Length)
                 {
-                    await FlushChunkAsync(cancellationToken).ConfigureAwait(false);
+                    hasFlushed = await FlushChunkAsync(cancellationToken).ConfigureAwait(false);
                 }
 
                 buffer = buffer.Slice(toWrite);
             }
+
+            return hasFlushed;
         }
 
         /// <summary>
         ///     Copies given memory to the outbound stream to be sent.
         /// </summary>
         /// <param name="data">Data to be sent.</param>
-        internal void Enqueue(ReadOnlySpan<byte> data)
+        /// <returns>Whether new chunk was flushed down the internal pipeline.</returns>
+        internal bool Enqueue(ReadOnlySpan<byte> data)
         {
             Debug.Assert(!SizeKnown);
+
+            bool hasFlushed = false;
 
             while (data.Length > 0)
             {
@@ -312,11 +335,13 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
                 if (_toBeQueuedChunk.Length == _toBeQueuedChunk.Buffer!.Length)
                 {
-                    FlushChunk();
+                    hasFlushed = FlushChunk();
                 }
 
                 data = data.Slice(toWrite);
             }
+
+            return hasFlushed;
         }
 
         private void DrainIncomingChunks()

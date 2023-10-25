@@ -283,22 +283,26 @@ namespace System.Net.Quic.Implementations.Managed
         }
 
         // server constructor
-        internal ManagedQuicConnection(QuicServerConnectionOptions options, QuicConnectionContext socketContext,
+        internal ManagedQuicConnection(QuicConnectionContext socketContext,
             EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
             : base(true)
         {
-            options.Validate(nameof(options));
 
-            _connectionOptions = options;
-            _canAccept = options.MaxInboundUnidirectionalStreams > 0 || options.MaxInboundBidirectionalStreams > 0;
             IsServer = true;
             _socketContext = socketContext;
             _remoteEndpoint = remoteEndpoint;
-            _localTransportParameters = TransportParameters.FromConnectionOptions(options);
 
-            Tls = tlsFactory.CreateServer(this, options, _localTransportParameters);
             _trace = InitTrace(IsServer, odcid);
             Recovery = new RecoveryController(_trace);
+
+            var options = socketContext.GetServerConnectionOptions(this);
+            options.Validate("options");
+            _connectionOptions = options;
+
+            _localTransportParameters = TransportParameters.FromConnectionOptions(_connectionOptions);
+
+            _canAccept = _connectionOptions.MaxInboundUnidirectionalStreams > 0 || _connectionOptions.MaxInboundBidirectionalStreams > 0;
+            Tls = tlsFactory.CreateServer(this, options, _localTransportParameters);
 
             CoreInit();
         }
@@ -579,6 +583,8 @@ namespace System.Net.Quic.Implementations.Managed
             if (_pingWanted ||
                 _streams.HasFlushableStreams ||
                 _streams.HasUpdateableStreams ||
+                MaxStreamsUniFrameSent < _receiveLimits.MaxStreamsUni ||
+                MaxStreamsBidiFrameSent < _receiveLimits.MaxStreamsBidi ||
                 ShouldSendConnectionClose(timestamp))
             {
                 return EncryptionLevel.Application;
@@ -733,8 +739,11 @@ namespace System.Net.Quic.Implementations.Managed
         public override IPEndPoint LocalEndPoint => _socketContext.LocalEndPoint;
 
         // TODO-RZ: create a defensive copy of the endpoint
-        // TODO: get the IP endpoint from the connected socket, not from input options as it might be DNS endpoint that needs to be resolved
-        public override IPEndPoint RemoteEndPoint => (IPEndPoint)_remoteEndpoint;
+        public override IPEndPoint RemoteEndPoint => IsServer
+            // server connections get passed IPEndPoint
+            ? (IPEndPoint)_remoteEndpoint
+            // for clients, check the RemoteEndPoint of the Socket
+            : _socketContext.RemoteEndPoint!;
 
         public override async ValueTask<QuicStream> OpenOutboundStreamAsync(QuicStreamType type, CancellationToken cancellationToken = default)
         {
