@@ -146,7 +146,7 @@ namespace System.Net.Quic.Tests
             var ctx = new QuicServerSocketContext(new IPEndPoint(IPAddress.Any, 0),
                 listenerOptions, Channel.CreateUnbounded<object>().Writer, MockTlsFactory.Instance);
             Span<byte> odcid = stackalloc byte[20];
-            return new ManagedQuicConnection(options, new QuicConnectionContext(ctx, _dummyListenEndpoint, odcid, MockTlsFactory.Instance), _dummyListenEndpoint, odcid, MockTlsFactory.Instance);
+            return new ManagedQuicConnection(new QuicConnectionContext(ctx, _dummyListenEndpoint, odcid, MockTlsFactory.Instance), _dummyListenEndpoint, odcid, MockTlsFactory.Instance);
         }
 
         /// <summary>
