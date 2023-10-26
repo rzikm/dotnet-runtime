@@ -41,6 +41,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
                 if (!_acceptNewConnections || HeaderHelpers.GetPacketType(datagram.Buffer[0]) != PacketType.Initial)
                 {
                     // TODO-RZ: send CONNECTION_REFUSED for valid initial packets
+                    System.Console.WriteLine($"TODO: Unable to process packet from {datagram.RemoteEndpoint}, CONNECTION_REFUSED not implemented");
                     return;
                 }
 

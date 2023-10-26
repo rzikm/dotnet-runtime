@@ -87,26 +87,37 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             {
                 while (!_socketTaskCts.IsCancellationRequested)
                 {
-                    // use fresh buffer for each receive, since the previous one is still being processed
-                    var buffer = ArrayPool.Rent(1200);
-
-                    DatagramInfo datagram;
-
-                    if (_remoteEndPoint != null)
+                    try
                     {
-                        var read = await _socket.ReceiveAsync(buffer).ConfigureAwait(false);
-                        datagram = new DatagramInfo(buffer, read, _remoteEndPoint);
+                        // use fresh buffer for each receive, since the previous one is still being processed
+                        var buffer = ArrayPool.Rent(1200);
+
+                        DatagramInfo datagram;
+
+                        if (_remoteEndPoint != null)
+                        {
+                            var read = await _socket.ReceiveAsync(buffer).ConfigureAwait(false);
+                            datagram = new DatagramInfo(buffer, read, _remoteEndPoint);
+                        }
+                        else
+                        {
+                            var res = await _socket.ReceiveFromAsync(buffer, _localEndPoint!).ConfigureAwait(false);
+                            datagram = new DatagramInfo(buffer, res.ReceivedBytes, res.RemoteEndPoint);
+                        }
+
+                        // process only datagrams big enough to contain valid QUIC packets
+                        if (datagram.Length >= QuicConstants.MinimumPacketSize)
+                        {
+                            OnDatagramReceived(datagram);
+                        }
+                        else
+                        {
+                            System.Console.WriteLine($"Received datagram too small to be a QUIC packet: {datagram.Length}");
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        var res = await _socket.ReceiveFromAsync(buffer, _localEndPoint!).ConfigureAwait(false);
-                        datagram = new DatagramInfo(buffer, res.ReceivedBytes, res.RemoteEndPoint);
-                    }
-
-                    // process only datagrams big enough to contain valid QUIC packets
-                    if (datagram.Length >= QuicConstants.MinimumPacketSize)
-                    {
-                        OnDatagramReceived(datagram);
+                        System.Console.WriteLine(ex);
                     }
                 }
             });
