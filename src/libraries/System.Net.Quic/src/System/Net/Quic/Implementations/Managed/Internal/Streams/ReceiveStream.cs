@@ -274,6 +274,9 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         {
             // no lock necessary here, race condition with incoming reset frame does not affect user.
             StreamState = RecvStreamState.DataRead;
+
+            // drop any remaining buffers just to be sure
+            DropAllBufferedData();
         }
 
 
@@ -343,7 +346,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
                     var memory = buffer.AsMemory(startOffset, delivered);
 
                     StreamChunk chunk;
-                    if (deliveryEnd == lastStreamOffsetInBuffer)
+                    if (deliveryEnd == lastStreamOffsetInBuffer ||
+                        FinalSizeKnown && deliveryEnd == Size - 1)
                     {
                         // entire buffer is filled, pass it in the chunk so that it gets returned and reused
                         chunk = new StreamChunk(_bytesQueued, memory, buffer);
