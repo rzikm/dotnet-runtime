@@ -145,15 +145,37 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
 
         public void OnAckFrame(in AckFrame frame, long ackDelayMicroseconds)
         {
-            LogFrame("Ack");
+            var sb = GetPacketContentBuilder();
+            Span<RangeSet.Range> ranges = stackalloc RangeSet.Range[(int)frame.AckRangeCount + 1];
+            sb.Append("Ack[");
+            if (frame.TryDecodeAckRanges(ranges))
+            {
+                for (int i = 0; i < ranges.Length; i++)
+                {
+                    if (i > 0)
+                    {
+                        sb.Append(',');
+                    }
+
+                    sb.Append(ranges[i].Start);
+                    if (ranges[i].Length > 1)
+                    {
+                        sb.Append('-');
+                        sb.Append(ranges[i].End);
+                    }
+                }
+            }
+            sb.Append("] ");
         }
 
         public void OnResetStreamFrame(in ResetStreamFrame frame)
         {
+            LogFrame($"ResetStream[{frame.StreamId}, {frame.ApplicationErrorCode}, {frame.FinalSize}]");
         }
 
         public void OnStopSendingFrame(in StopSendingFrame frame)
         {
+            LogFrame($"StopSending[{frame.StreamId}, {frame.ApplicationErrorCode}]");
         }
 
         public void OnCryptoFrame(in CryptoFrame frame)
@@ -172,26 +194,32 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
 
         public void OnMaxDataFrame(in MaxDataFrame frame)
         {
+            LogFrame($"MaxData[{frame.MaximumData}]");
         }
 
         public void OnMaxStreamDataFrame(in MaxStreamDataFrame frame)
         {
+            LogFrame($"MaxStreamData[{frame.StreamId}, {frame.MaximumStreamData}]");
         }
 
         public void OnMaxStreamsFrame(in MaxStreamsFrame frame)
         {
+            LogFrame($"MaxStreams[{(frame.Bidirectional ? "Bi" : "Uni")}, {frame.MaximumStreams}]");
         }
 
         public void OnDataBlockedFrame(in DataBlockedFrame frame)
         {
+            LogFrame($"DataBlocked[{frame.DataLimit}]");
         }
 
         public void OnStreamDataBlockedFrame(in StreamDataBlockedFrame frame)
         {
+            LogFrame($"StreamDataBlocked[{frame.StreamId}, {frame.StreamDataLimit}]");
         }
 
         public void OnStreamsBlockedFrame(in StreamsBlockedFrame frame)
         {
+            LogFrame($"StreamsBlocked[{(frame.Bidirectional ? "Bi" : "Uni")}, {frame.StreamLimit}]");
         }
 
         public void OnNewConnectionIdFrame(in NewConnectionIdFrame frame)
@@ -208,7 +236,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
 
         public void OnConnectionCloseFrame(in ConnectionCloseFrame frame)
         {
-            LogFrame($"ConnectionClose[{frame.ErrorCode}]");
+            LogFrame($"ConnectionClose[{(frame.IsQuicError ? "QUIC" : "App")}, {frame.ErrorCode}]");
         }
 
         public void OnHandshakeDoneFrame()
