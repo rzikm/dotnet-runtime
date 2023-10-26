@@ -200,7 +200,8 @@ namespace System.Net.Quic.Implementations.Managed
             if (completeWrites)
             {
                 SendStream.MarkEndOfData();
-                didFlush |= SendStream.FlushChunk();
+                SendStream.FlushChunk();
+                didFlush = true;
             }
 
             if (didFlush)
@@ -343,10 +344,8 @@ namespace System.Net.Quic.Implementations.Managed
             if (CanWrite)
             {
                 SendStream!.MarkEndOfData();
-                if (SendStream!.FlushChunk())
-                {
-                    _connection.OnStreamDataWritten(this);
-                }
+                SendStream!.FlushChunk();
+                _connection.OnStreamDataWritten(this);
             }
 
             if (CanRead)
@@ -369,10 +368,8 @@ namespace System.Net.Quic.Implementations.Managed
             if (CanWrite)
             {
                 SendStream!.MarkEndOfData();
-                if (await SendStream!.FlushChunkAsync(CancellationToken.None).ConfigureAwait(false))
-                {
-                    _connection.OnStreamDataWritten(this);
-                }
+                await SendStream!.FlushChunkAsync(CancellationToken.None).ConfigureAwait(false);
+                _connection.OnStreamDataWritten(this);
             }
 
             if (CanRead)
@@ -391,7 +388,8 @@ namespace System.Net.Quic.Implementations.Managed
             if (completeWrites)
             {
                 SendStream.MarkEndOfData();
-                didFlush |= await SendStream.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
+                await SendStream.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
+                didFlush = true;
             }
 
             if (didFlush)
