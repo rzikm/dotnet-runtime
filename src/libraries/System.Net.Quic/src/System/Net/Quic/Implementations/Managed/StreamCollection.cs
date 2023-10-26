@@ -153,6 +153,28 @@ namespace System.Net.Quic.Implementations.Managed
             return _streams[streamId]!;
         }
 
+        internal void OnStreamLimitUpdated(StreamType type, long maxCount, long prevCount)
+        {
+            if (_streamCounts[(int)type] > prevCount)
+            {
+                lock (_streamCounts)
+                {
+                    int count = _streamCounts[(int)type];
+                    for (long index = prevCount; index < maxCount; index++)
+                    {
+                        long id = StreamHelpers.ComposeStreamId(type, index);
+
+                        if (!_streams.TryGetValue(id, out var stream))
+                        {
+                            break;
+                        }
+
+                        stream.NotifyStarted();
+                    }
+                }
+            }
+        }
+
         private static ManagedQuicStream CreateStream(long streamId,
             bool isLocal, bool unidirectional, TransportParameters localParams, TransportParameters remoteParams,
             ManagedQuicConnection connection)

@@ -331,6 +331,9 @@ namespace System.Net.Quic.Implementations.Managed
             _receiveLimits.UpdateMaxStreamsBidi(_localTransportParameters.InitialMaxStreamsBidi);
             _receiveLimits.UpdateMaxStreamsUni(_localTransportParameters.InitialMaxStreamsUni);
             _receiveLimitsAtPeer = _receiveLimits;
+
+            MaxStreamsUniFrameSent = _receiveLimits.MaxStreamsUni;
+            MaxStreamsBidiFrameSent = _receiveLimits.MaxStreamsBidi;
         }
 
 
@@ -420,15 +423,19 @@ namespace System.Net.Quic.Implementations.Managed
 
             if (timestamp >= _idleTimeout)
             {
-                // TODO-RZ: Force close the connection with error
-                CloseConnection(TransportErrorCode.NoError);
-                SignalConnectionClose();
+                OnIdleTimeout();
             }
 
             if (timestamp >= Recovery.LossRecoveryTimer)
             {
                 Recovery.OnLossDetectionTimeout(Tls.IsHandshakeComplete, timestamp);
             }
+        }
+
+        internal void OnIdleTimeout()
+        {
+            SetException(new QuicException(QuicError.ConnectionIdle, null, null, "Connection idle."));
+            SignalConnectionClose();
         }
 
         /// <summary>
@@ -819,13 +826,13 @@ namespace System.Net.Quic.Implementations.Managed
                 return default;
             }
 
+            _outboundError = new QuicTransportError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
+
             // abort all pending stream operations on our side
             foreach (var stream in _streams.AllStreams)
             {
                 stream.OnConnectionClosed(MakeOperationAbortedException());
             }
-
-            _outboundError = new QuicTransportError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
 
             _streams.IncomingStreams.Writer.TryComplete(MakeOperationAbortedException());
             _socketContext.WakeUp();
@@ -905,19 +912,7 @@ namespace System.Net.Quic.Implementations.Managed
             // disable ack timer
             _nextAckTimer = long.MaxValue;
 
-            if (error.ErrorCode == TransportErrorCode.NoError)
-            {
-                _streams.IncomingStreams.Writer.TryComplete();
-            }
-            else
-            {
-                _streams.IncomingStreams.Writer.TryComplete(MakeConnectionAbortedException(error));
-            }
-
-            foreach (var stream in _streams.AllStreams)
-            {
-                stream.OnConnectionClosed(MakeConnectionAbortedException(error));
-            }
+            SetException(MakeConnectionAbortedException(error));
         }
 
         private void StartDraining()
@@ -983,9 +978,14 @@ namespace System.Net.Quic.Implementations.Managed
         {
             _socketContextException = e;
             CloseConnection(TransportErrorCode.InternalError);
+            SetException(e);
+        }
 
+        internal void SetException(Exception e)
+        {
             _connectTcs.TryCompleteException(e);
-            _closeTcs.TryCompleteException(e);
+            _closeTcs.TryComplete();
+            _streams.IncomingStreams.Writer.TryComplete(e);
 
             foreach (var stream in _streams)
             {
