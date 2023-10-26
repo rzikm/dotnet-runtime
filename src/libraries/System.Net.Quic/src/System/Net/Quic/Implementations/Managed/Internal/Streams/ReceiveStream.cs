@@ -274,9 +274,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         {
             // no lock necessary here, race condition with incoming reset frame does not affect user.
             StreamState = RecvStreamState.DataRead;
-
-            // drop any remaining buffers just to be sure
-            DropAllBufferedData();
         }
 
 
