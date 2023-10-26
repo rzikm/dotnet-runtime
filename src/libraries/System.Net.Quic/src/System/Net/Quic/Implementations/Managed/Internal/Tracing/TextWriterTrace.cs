@@ -83,6 +83,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
 
         public void OnDatagramReceived(int length)
         {
+            InitLine();
+            _lineBuilder.Append($"Received datagram: {length} B: ");
         }
 
         public void OnDatagramSent(int length)
@@ -102,8 +104,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
             long packetNumber,
             long payloadLength, long packetSize)
         {
-            InitLine();
-            _lineBuilder.Append($"Received {packetType}[{packetNumber}]: ");
+            _lineBuilder.Append($"{packetType}[{packetNumber}]: ");
         }
 
         public void OnPacketReceiveEnd()
@@ -189,7 +190,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Tracing
 
         public void OnStreamFrame(in StreamFrame frame)
         {
-            LogFrame($"Stream[{frame.StreamId}, {frame.Offset}, {frame.StreamData.Length}]");
+            LogFrame($"Stream[{frame.StreamId}, {frame.Offset}, {frame.StreamData.Length}{(frame.Fin ? ", FIN" : "")}]");
         }
 
         public void OnMaxDataFrame(in MaxDataFrame frame)

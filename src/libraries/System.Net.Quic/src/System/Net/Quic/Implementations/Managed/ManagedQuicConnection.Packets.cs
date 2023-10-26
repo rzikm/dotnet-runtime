@@ -43,6 +43,7 @@ namespace System.Net.Quic.Implementations.Managed
                 switch (status)
                 {
                     case ProcessPacketResult.DropPacket:
+                        System.Console.WriteLine("Dropped packet");
                         break;
                     case ProcessPacketResult.Ok:
                         // An endpoint restarts its idle timer when a packet from its peer is
@@ -279,7 +280,7 @@ namespace System.Net.Quic.Implementations.Managed
             }
 
             if (pnSpace.RecvCryptoSeal == null || // Decryption keys are not available yet
-                // skip additional data so the reader position is on packet number offset
+                                                  // skip additional data so the reader position is on packet number offset
                 !SharedPacketData.Read(reader, header.FirstByte, out headerData))
             {
                 headerData = default;
