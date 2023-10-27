@@ -20,10 +20,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
         protected override void OnDatagramReceived(in DatagramInfo datagram)
         {
-            if (!ConnectionContext.IncomingDatagramWriter.TryWrite(datagram))
-            {
-                System.Console.WriteLine("Failed to write to the incoming datagram queue.");
-            }
+            ConnectionContext.OnDatagramReceived(in datagram);
         }
 
         protected internal override bool OnConnectionStateChanged(ManagedQuicConnection connection, QuicConnectionState newState)
