@@ -22,6 +22,10 @@
   <!-- Source files -->
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' != ''">
     <Compile Include="System\Net\Quic\**\*.cs" Exclude="System\Net\Quic\*.Unsupported.cs"/>
+    <!-- common -->
+    <Compile Include="$(CommonPath)Internal\Padding.cs" Link="Common\Internal\Padding.cs" />
+    <Compile Include="$(CommonPath)System\Collections\Concurrent\IProducerConsumerQueue.cs" Link="Common\System\Collections\Concurrent\IProducerConsumerQueue.cs" />
+    <Compile Include="$(CommonPath)System\Collections\Concurrent\SingleProducerSingleConsumerQueue.cs" Link="Common\System\Collections\Concurrent\SingleProducerSingleConsumerQueue.cs" />
     <!-- System.Net common -->
     <Compile Include="$(CommonPath)DisableRuntimeMarshalling.cs" Link="Common\DisableRuntimeMarshalling.cs" />
     <Compile Include="$(CommonPath)System\Net\ArrayBuffer.cs" Link="Common\System\Net\ArrayBuffer.cs" />
@@ -121,6 +125,7 @@
     <Reference Include="System.Text.Json" />
     <Reference Include="System.Threading" />
     <Reference Include="System.Threading.Channels" />
+    <Reference Include="System.Threading.Threadpool" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'windows'">
