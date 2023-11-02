@@ -17,10 +17,10 @@ namespace System.Net.Quic.Implementations.Managed
     /// <summary>
     ///     Collection of Quic streams.
     /// </summary>
-    internal sealed class StreamCollection : IEnumerable<ManagedQuicStream>
+    internal sealed class StreamCollection
     {
         /// <summary>
-        ///     All streams by their id;
+        ///     All opened streams by their id;
         /// </summary>
         private ConcurrentDictionary<long, ManagedQuicStream> _streams = new ConcurrentDictionary<long, ManagedQuicStream>();
 
@@ -49,7 +49,10 @@ namespace System.Net.Quic.Implementations.Managed
                 SingleWriter = true
             });
 
-        internal ManagedQuicStream this[long streamId] => _streams[streamId];
+        /// <summary>
+        ///     Returns all streams that are currently open.
+        /// </summary>
+        internal IEnumerable<ManagedQuicStream> OpenStreams => _streams.Values;
 
         /// <summary>
         ///     Returns the stream with given ID or null if the stream hasn't been created yet.
@@ -118,78 +121,109 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        internal ManagedQuicStream GetOrCreateStream(long streamId, in TransportParameters localParams,
-            in TransportParameters remoteParams, bool isLocal, ManagedQuicConnection connection)
+        internal bool TryGetOrCreateStream(long streamId, bool createIfMissing, bool enforceLimits, ManagedQuicConnection connection, out ManagedQuicStream? stream)
         {
+            // hot path
+            if (_streams.TryGetValue(streamId, out stream))
+            {
+                return true;
+            }
+
+            // if not found, check limits
             var type = StreamHelpers.GetStreamType(streamId);
             long index = StreamHelpers.GetStreamIndex(streamId);
-            bool unidirectional = !StreamHelpers.IsBidirectional(streamId);
+            ref int streamCount = ref _streamCounts[(int)type];
 
-            // create also all lower-numbered streams
-            if (_streamCounts[(int)type] <= index)
+            // we can read here under the lock because the stream count only
+            // ever increases and we read it again after acquiring the lock
+            if (index < streamCount)
             {
-                lock (_streamCounts)
+                // the stream has already been released, return null
+                return true;
+            }
+
+            if (!createIfMissing)
+            {
+                // not yet created, likely stream limit violation
+                return false;
+            }
+
+            // asking for new stream, check limits first
+            bool isLocal = StreamHelpers.IsLocallyInitiated(connection.IsServer, streamId);
+
+            var limit = isLocal
+                ? StreamHelpers.IsBidirectional(streamId)
+                    ? connection._sendLimits.MaxStreamsBidi
+                    : connection._sendLimits.MaxStreamsUni
+                : StreamHelpers.IsBidirectional(streamId)
+                    ? connection._receiveLimits.MaxStreamsBidi
+                    : connection._receiveLimits.MaxStreamsUni;
+
+            if (index >= limit && enforceLimits)
+            {
+                return false;
+            }
+
+            lock (_streamCounts)
+            {
+                // create also all lower-numbered streams
+                while (streamCount <= index)
                 {
-                    while (_streamCounts[(int)type] <= index)
+                    long nextId = StreamHelpers.ComposeStreamId(type, streamCount);
+
+                    stream = CreateStream(nextId, isLocal, connection);
+
+                    bool success = _streams.TryAdd(nextId, stream);
+                    Debug.Assert(success, "Failed to add stream");
+
+                    if (!isLocal)
                     {
-                        long nextId = StreamHelpers.ComposeStreamId(type, _streamCounts[(int)type]);
-
-                        var stream = CreateStream(nextId, isLocal, unidirectional, localParams, remoteParams, connection);
-                        if (_streams.TryAdd(nextId, stream))
-                        {
-                            _streamCounts[(int)type]++;
-                        }
-
-                        if (!isLocal)
-                        {
-                            bool success = IncomingStreams.Writer.TryWrite(stream);
-                            // reserving space should be assured by connection stream limits
-                            Debug.Assert(success, "Failed to write into IncomingStreams");
-                        }
+                        success = IncomingStreams.Writer.TryWrite(stream);
+                        // reserving space should be assured by connection stream limits
+                        Debug.Assert(success, "Failed to write into IncomingStreams");
                     }
+                    else if (streamCount < limit)
+                    {
+                        stream.NotifyStarted();
+                    }
+
+                    _streamCounts[(int)type]++;
                 }
             }
 
-            return _streams[streamId]!;
+            return true;
         }
 
         internal void OnStreamLimitUpdated(StreamType type, long maxCount, long prevCount)
         {
-            if (_streamCounts[(int)type] > prevCount)
+            for (long index = prevCount; index < maxCount; index++)
             {
-                lock (_streamCounts)
+                long id = StreamHelpers.ComposeStreamId(type, index);
+
+                if (!_streams.TryGetValue(id, out var stream))
                 {
-                    int count = _streamCounts[(int)type];
-                    for (long index = prevCount; index < maxCount; index++)
-                    {
-                        long id = StreamHelpers.ComposeStreamId(type, index);
-
-                        if (!_streams.TryGetValue(id, out var stream))
-                        {
-                            break;
-                        }
-
-                        stream.NotifyStarted();
-                    }
+                    break;
                 }
+
+                stream.NotifyStarted();
             }
         }
 
-        private static ManagedQuicStream CreateStream(long streamId,
-            bool isLocal, bool unidirectional, TransportParameters localParams, TransportParameters remoteParams,
-            ManagedQuicConnection connection)
+        private static ManagedQuicStream CreateStream(long streamId, bool isLocal, ManagedQuicConnection connection)
         {
+            bool unidirectional = !StreamHelpers.IsBidirectional(streamId);
+
             // use initial flow control limits
             (long? maxDataInbound, long? maxDataOutbound) = (isLocal, unidirectional) switch
             {
                 // local unidirectional
-                (true, true) => ((long?)null, (long?)remoteParams.InitialMaxStreamDataUni),
+                (true, true) => ((long?)null, (long?)connection._peerTransportParameters.InitialMaxStreamDataUni),
                 // local bidirectional
-                (true, false) => ((long?)localParams.InitialMaxStreamDataBidiLocal, (long?)remoteParams.InitialMaxStreamDataBidiRemote),
+                (true, false) => ((long?)connection._localTransportParameters.InitialMaxStreamDataBidiLocal, (long?)connection._peerTransportParameters.InitialMaxStreamDataBidiRemote),
                 // remote unidirectional
-                (false, true) => ((long?)localParams.InitialMaxStreamDataUni, (long?)null),
+                (false, true) => ((long?)connection._localTransportParameters.InitialMaxStreamDataUni, (long?)null),
                 // remote bidirectional
-                (false, false) => ((long?)localParams.InitialMaxStreamDataBidiRemote, (long?)remoteParams.InitialMaxStreamDataBidiLocal),
+                (false, false) => ((long?)connection._localTransportParameters.InitialMaxStreamDataBidiRemote, (long?)connection._peerTransportParameters.InitialMaxStreamDataBidiLocal),
             };
 
             ReceiveStream? recvStream = maxDataInbound != null
@@ -233,10 +267,27 @@ namespace System.Net.Quic.Implementations.Managed
             return false;
         }
 
-        internal IEnumerable<ManagedQuicStream> AllStreams => _streams.Values;
+        private static void RemoveFromListSynchronized(LinkedList<ManagedQuicStream> list, LinkedListNode<ManagedQuicStream> node)
+        {
+            // use double checking to prevent frequent locking
+            if (node.List != null)
+            {
+                lock (list)
+                {
+                    if (node.List != null)
+                    {
+                        list.Remove(node);
+                    }
+                }
+            }
+        }
 
-        public IEnumerator<ManagedQuicStream> GetEnumerator() => AllStreams.GetEnumerator();
+        internal void Remove(ManagedQuicStream stream)
+        {
+            RemoveFromListSynchronized(_flushable, stream._flushableListNode);
+            RemoveFromListSynchronized(_updateQueue, stream._updateQueueListNode);
 
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            _streams.TryRemove(stream.Id, out _);
+        }
     }
 }

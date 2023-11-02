@@ -60,6 +60,11 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         internal SendStream? SendStream { get; }
 
+        /// <summary>
+        ///     Returns true if the stream has been started (is within peer's limits).
+        /// </summary>
+        internal bool IsStarted => _started.IsSet;
+
         internal ManagedQuicStream(long streamId, ReceiveStream? receiveStream, SendStream? sendStream, ManagedQuicConnection connection)
             : base(true)
         {

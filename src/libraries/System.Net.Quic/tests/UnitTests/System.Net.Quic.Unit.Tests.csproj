@@ -23,9 +23,13 @@
     <Compile Include="..\..\src\System\Net\Quic\QuicListenerOptions.cs" />
     <Compile Include="..\..\src\System\Net\Quic\Implementations\Managed\**\*.cs" />
   </ItemGroup>
-  <!-- System.Net common -->
   <ItemGroup>
+    <!-- common -->
+    <Compile Include="$(CommonPath)Internal\Padding.cs" Link="Common\Internal\Padding.cs" />
+    <Compile Include="$(CommonPath)System\Collections\Concurrent\IProducerConsumerQueue.cs" Link="Common\System\Collections\Concurrent\IProducerConsumerQueue.cs" />
+    <Compile Include="$(CommonPath)System\Collections\Concurrent\SingleProducerSingleConsumerQueue.cs" Link="Common\System\Collections\Concurrent\SingleProducerSingleConsumerQueue.cs" />
     <Compile Include="$(CommonPath)System\Threading\Tasks\TaskToAsyncResult.cs" Link="Common\System\Threading\Tasks\TaskToAsyncResult.cs" />
+    <!-- System.Net common -->
     <Compile Include="$(CommonPath)System\Net\ArrayBuffer.cs" Link="Common\System\Net\ArrayBuffer.cs" />
     <Compile Include="$(CommonPath)System\Net\MultiArrayBuffer.cs" Link="Common\System\Net\MultiArrayBuffer.cs" />
     <Compile Include="$(CommonPath)System\Net\StreamBuffer.cs" Link="Common\System\Net\StreamBuffer.cs" />
