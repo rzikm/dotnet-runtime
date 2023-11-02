@@ -380,10 +380,10 @@ namespace System.Net.Quic.Implementations.Managed
                 return long.MaxValue;
             }
 
-            // if (GetWriteLevel(_lastUpdateTimestamp) != PacketSpace.None)
+            // if (HasApplicationDataToSend())
             // {
             //     // start immediately
-            //     return _lastUpdateTimestamp;
+            //     return Timestamp.Now;
             // }
 
             long timer = _idleTimeout;
@@ -399,7 +399,7 @@ namespace System.Net.Quic.Implementations.Managed
             {
                 timer = Math.Min(timer, _nextAckTimer);
 
-                if (Recovery.IsPacing && _streams.HasFlushableStreams)
+                if (Recovery.IsPacing && HasApplicationDataToSend())
                 {
                     timer = Math.Min(timer, Recovery.GetPacingTimerForNextFullPacket());
                 }
@@ -586,19 +586,23 @@ namespace System.Net.Quic.Implementations.Managed
             }
 
             // check if we have something to send.
-            // TODO-RZ: this list may be incomplete
-            if (_pingWanted ||
-                _streams.HasFlushableStreams ||
-                _streams.HasUpdateableStreams ||
-                MaxStreamsUniFrameSent < _receiveLimits.MaxStreamsUni ||
-                MaxStreamsBidiFrameSent < _receiveLimits.MaxStreamsBidi ||
-                ShouldSendConnectionClose(timestamp))
+            if (HasApplicationDataToSend() || ShouldSendConnectionClose(timestamp))
             {
                 return EncryptionLevel.Application;
             }
 
             // otherwise we have no data to send.
             return EncryptionLevel.None;
+        }
+
+        private bool HasApplicationDataToSend()
+        {
+            // TODO-RZ: this list may be incomplete
+            return _pingWanted ||
+                _streams.HasFlushableStreams ||
+                _streams.HasUpdateableStreams ||
+                MaxStreamsUniFrameSent < _receiveLimits.MaxStreamsUni ||
+                MaxStreamsBidiFrameSent < _receiveLimits.MaxStreamsBidi;
         }
 
         private static PacketSpace GetPacketSpace(PacketType packetType)

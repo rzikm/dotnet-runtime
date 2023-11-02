@@ -412,8 +412,10 @@ namespace System.Net.Quic.Implementations.Managed
 
                 if (frame.MaximumStreams > _sendLimits.MaxStreamsBidi)
                 {
-                    _streams.OnStreamLimitUpdated(type, frame.MaximumStreams, _sendLimits.MaxStreamsBidi);
+                    // System.Console.WriteLine($"Updating limits: {frame.MaximumStreams}");
+                    long oldLimit = _sendLimits.MaxStreamsBidi;
                     _sendLimits.UpdateMaxStreamsBidi(frame.MaximumStreams);
+                    _streams.OnStreamLimitUpdated(type, _sendLimits.MaxStreamsBidi, oldLimit);
                 }
             }
             else
@@ -421,8 +423,9 @@ namespace System.Net.Quic.Implementations.Managed
                 StreamType type = StreamHelpers.GetLocallyInitiatedType(IsServer, true);
                 if (frame.MaximumStreams > _sendLimits.MaxStreamsUni)
                 {
-                    _streams.OnStreamLimitUpdated(type, frame.MaximumStreams, _sendLimits.MaxStreamsUni);
+                    long oldLimit = _sendLimits.MaxStreamsUni;
                     _sendLimits.UpdateMaxStreamsUni(frame.MaximumStreams);
+                    _streams.OnStreamLimitUpdated(type, _sendLimits.MaxStreamsUni, oldLimit);
                 }
             }
 

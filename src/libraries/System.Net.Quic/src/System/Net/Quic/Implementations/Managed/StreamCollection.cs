@@ -148,24 +148,26 @@ namespace System.Net.Quic.Implementations.Managed
                 return false;
             }
 
-            // asking for new stream, check limits first
             bool isLocal = StreamHelpers.IsLocallyInitiated(connection.IsServer, streamId);
 
-            var limit = isLocal
-                ? StreamHelpers.IsBidirectional(streamId)
-                    ? connection._sendLimits.MaxStreamsBidi
-                    : connection._sendLimits.MaxStreamsUni
-                : StreamHelpers.IsBidirectional(streamId)
-                    ? connection._receiveLimits.MaxStreamsBidi
-                    : connection._receiveLimits.MaxStreamsUni;
-
-            if (index >= limit && enforceLimits)
-            {
-                return false;
-            }
-
+            // we may be called from user therad and racing with connection thread
+            // TODO: separate opening outbound stream from other use cases
             lock (_streamCounts)
             {
+                // asking for new stream, check limits first
+                var limit = isLocal
+                    ? StreamHelpers.IsBidirectional(streamId)
+                        ? connection._sendLimits.MaxStreamsBidi
+                        : connection._sendLimits.MaxStreamsUni
+                    : StreamHelpers.IsBidirectional(streamId)
+                        ? connection._receiveLimits.MaxStreamsBidi
+                        : connection._receiveLimits.MaxStreamsUni;
+
+                if (index >= limit && enforceLimits)
+                {
+                    return false;
+                }
+
                 // create also all lower-numbered streams
                 while (streamCount <= index)
                 {
@@ -184,7 +186,12 @@ namespace System.Net.Quic.Implementations.Managed
                     }
                     else if (streamCount < limit)
                     {
+                        // System.Console.WriteLine($"Starting stream with index from Create: {streamCount}");
                         stream.NotifyStarted();
+                    }
+                    else
+                    {
+                        // System.Console.WriteLine($"Blocking stream with index from Create: {streamCount}");
                     }
 
                     _streamCounts[(int)type]++;
@@ -196,16 +203,21 @@ namespace System.Net.Quic.Implementations.Managed
 
         internal void OnStreamLimitUpdated(StreamType type, long maxCount, long prevCount)
         {
-            for (long index = prevCount; index < maxCount; index++)
+            lock (_streamCounts)
             {
-                long id = StreamHelpers.ComposeStreamId(type, index);
-
-                if (!_streams.TryGetValue(id, out var stream))
+                for (long index = prevCount; index < maxCount; index++)
                 {
-                    break;
-                }
+                    long id = StreamHelpers.ComposeStreamId(type, index);
 
-                stream.NotifyStarted();
+                    if (!_streams.TryGetValue(id, out var stream))
+                    {
+                        // System.Console.WriteLine($"Stopping unblock loop at index {index}");
+                        break;
+                    }
+
+                    // System.Console.WriteLine($"Starting stream with index from OnLimitUpdated: {index}");
+                    stream.NotifyStarted();
+                }
             }
         }
 
