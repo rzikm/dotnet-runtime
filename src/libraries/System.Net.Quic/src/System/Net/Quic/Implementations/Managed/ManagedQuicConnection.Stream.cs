@@ -188,6 +188,7 @@ namespace System.Net.Quic.Implementations.Managed
                 // remote initiated stream closed, increase streams limit.
                 if (StreamHelpers.IsBidirectional(stream.Id))
                 {
+                    // System.Console.WriteLine($"Updated local limits: {_receiveLimits.MaxStreamsBidi + 1}");
                     _receiveLimits.UpdateMaxStreamsBidi(_receiveLimits.MaxStreamsBidi + 1);
                 }
                 else
@@ -197,7 +198,7 @@ namespace System.Net.Quic.Implementations.Managed
 
                 stream.FlowControlReleased = true;
             }
-
+            // System.Console.WriteLine($"Releasing stream {stream.Id}");
             _streams.Remove(stream);
         }
     }
