@@ -132,7 +132,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// <summary>
         ///     QUIC transport parameters used for this endpoint.
         /// </summary>
-        private readonly TransportParameters _localTransportParameters;
+        internal readonly TransportParameters _localTransportParameters;
 
         /// <summary>
         ///     The TLS handshake module.
@@ -184,7 +184,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// <summary>
         ///     Flow control limits set by this endpoint for the peer for the entire connection.
         /// </summary>
-        private ConnectionFlowControlLimits _receiveLimits;
+        internal ConnectionFlowControlLimits _receiveLimits;
 
         /// <summary>
         ///     Values of <see cref="_receiveLimits"/> that peer has confirmed received.
@@ -194,12 +194,12 @@ namespace System.Net.Quic.Implementations.Managed
         /// <summary>
         ///     Flow control limits set by the peer for this endpoint for the entire connection.
         /// </summary>
-        private ConnectionFlowControlLimits _sendLimits;
+        internal ConnectionFlowControlLimits _sendLimits;
 
         /// <summary>
         ///     QUIC transport parameters requested by peer endpoint.
         /// </summary>
-        private TransportParameters _peerTransportParameters = TransportParameters.Default;
+        internal TransportParameters _peerTransportParameters = TransportParameters.Default;
 
         /// <summary>
         ///     Error received via CONNECTION_CLOSE frame to be reported to the user.
@@ -829,7 +829,7 @@ namespace System.Net.Quic.Implementations.Managed
             _outboundError = new QuicTransportError((TransportErrorCode)errorCode, null, FrameType.Padding, false);
 
             // abort all pending stream operations on our side
-            foreach (var stream in _streams.AllStreams)
+            foreach (var stream in _streams.OpenStreams)
             {
                 stream.OnConnectionClosed(MakeOperationAbortedException());
             }
@@ -987,7 +987,7 @@ namespace System.Net.Quic.Implementations.Managed
             _closeTcs.TryComplete();
             _streams.IncomingStreams.Writer.TryComplete(e);
 
-            foreach (var stream in _streams)
+            foreach (var stream in _streams.OpenStreams)
             {
                 stream.OnFatalException(e);
             }

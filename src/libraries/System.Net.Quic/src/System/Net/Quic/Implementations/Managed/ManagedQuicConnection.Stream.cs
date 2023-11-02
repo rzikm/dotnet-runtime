@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Net.Quic.Implementations.Managed.Internal;
 using System.Net.Quic.Implementations.Managed.Internal.Frames;
@@ -12,7 +13,7 @@ namespace System.Net.Quic.Implementations.Managed
 {
     public partial class ManagedQuicConnection
     {
-        private struct ConnectionFlowControlLimits
+        internal struct ConnectionFlowControlLimits
         {
             private long _maxData;
 
@@ -99,14 +100,15 @@ namespace System.Net.Quic.Implementations.Managed
             ref long counter = ref (unidirectional ? ref _uniStreamsOpened : ref _bidirStreamsOpened);
             long index = Interlocked.Increment(ref counter) - 1;
 
-            ManagedQuicStream stream = _streams.GetOrCreateStream(
-                StreamHelpers.ComposeStreamId(type, index), _localTransportParameters, _peerTransportParameters, true, this);
-
-            long limit = unidirectional ? _sendLimits.MaxStreamsUni : _sendLimits.MaxStreamsBidi;
-            if (index < limit)
+            if (!_streams.TryGetOrCreateStream(StreamHelpers.ComposeStreamId(type, index), true, false, this, out var stream))
             {
-                // we are within advertised stream limits
-                stream.NotifyStarted();
+                Debug.Assert(false, "Failed to create new outbound stream");
+            }
+
+            Debug.Assert(stream != null, "GetOrCreateStream returned null for opening new stream");
+
+            if (stream.IsStarted)
+            {
                 return new ValueTask<ManagedQuicStream>(stream);
             }
 
@@ -125,9 +127,9 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         /// <param name="streamId">Id of the stream.</param>
         /// <returns>The stream associated with provided id.</returns>
-        private ManagedQuicStream GetStream(long streamId)
+        private ManagedQuicStream? GetStream(long streamId)
         {
-            return _streams[streamId];
+            return _streams.TryGetStream(streamId);
         }
 
         /// <summary>
@@ -135,30 +137,11 @@ namespace System.Net.Quic.Implementations.Managed
         ///     false if creating the remote initiated stream would violate stream limits imposed by this endpoint.
         /// </summary>
         /// <param name="streamId">Id of the stream to get or create.</param>
-        /// <param name="stream">Contains the result stream, or null if operation failed.</param>
-        /// <returns></returns>
+        /// <param name="stream">The stream, can be null if already released or outside of stream limits.</param>
+        /// <returns>True if the stream limit was not validated, false otherwise.</returns>
         private bool TryGetOrCreateStream(long streamId, out ManagedQuicStream? stream)
         {
-            // check whether the stream can be opened based on local limits
-
-            long index = StreamHelpers.GetStreamIndex(streamId);
-            bool local = StreamHelpers.IsLocallyInitiated(IsServer, streamId);
-            var param = local
-                ? _sendLimits
-                : _receiveLimits;
-
-            long limit = StreamHelpers.IsBidirectional(streamId)
-                ? param.MaxStreamsBidi
-                : param.MaxStreamsUni;
-
-            if (index >= limit)
-            {
-                stream = null;
-                return false;
-            }
-
-            stream = _streams.GetOrCreateStream(streamId, _localTransportParameters, _peerTransportParameters, local, this);
-            return true;
+            return _streams.TryGetOrCreateStream(streamId, !StreamHelpers.IsLocallyInitiated(IsServer, streamId), true, this, out stream);
         }
 
         internal ManagedQuicStream? AcceptStream()
@@ -214,6 +197,8 @@ namespace System.Net.Quic.Implementations.Managed
 
                 stream.FlowControlReleased = true;
             }
+
+            _streams.Remove(stream);
         }
     }
 }

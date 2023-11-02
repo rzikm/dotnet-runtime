@@ -275,12 +275,14 @@ namespace System.Net.Quic.Implementations.Managed
                     QuicTransportError.StreamsLimitViolated,
                     FrameType.ResetStream);
 
-            // TODO-RZ: Return control flow budget
+            if (stream != null)
+            {
+                Debug.Assert(stream!.CanRead);
 
-            Debug.Assert(stream!.CanRead);
+                // duplicate receipt is handled internally (guarded state transitions)
+                stream.ReceiveStream!.OnResetStream(frame.ApplicationErrorCode);
+            }
 
-            // duplicate receipt is handled internally (guarded state transitions)
-            stream.ReceiveStream!.OnResetStream(frame.ApplicationErrorCode);
             return ProcessPacketResult.Ok;
         }
 
@@ -297,19 +299,16 @@ namespace System.Net.Quic.Implementations.Managed
                     QuicTransportError.StreamNotWritable,
                     FrameType.StopSending);
 
-            var stream = _streams.TryGetStream(frame.StreamId);
-            // RFC: Receiving a STOP_SENDING frame for a locally-initiated stream that has not yet been created MUST be
-            // treated as a connection error of type STREAM_STATE_ERROR.
-            if (StreamHelpers.IsLocallyInitiated(IsServer, frame.StreamId) &&
-                // Streams are Created by sending a STREAM frame, if we didn't send anything, report error
-                !(stream?.SendStream?.UnsentOffset > 0))
-                return CloseConnection(TransportErrorCode.StreamStateError,
-                    QuicTransportError.StreamNotCreated,
-                    FrameType.StopSending);
-
-            if (stream == null && !TryGetOrCreateStream(frame.StreamId, out stream))
+            if (!TryGetOrCreateStream(frame.StreamId, out var stream))
                 return CloseConnection(TransportErrorCode.StreamLimitError,
                     QuicTransportError.StreamsLimitViolated,
+                    FrameType.StopSending);
+
+            // RFC: Receiving a STOP_SENDING frame for a locally-initiated stream that has not yet been created MUST be
+            // treated as a connection error of type STREAM_STATE_ERROR.
+            if (stream == null)
+                return CloseConnection(TransportErrorCode.StreamStateError,
+                    QuicTransportError.StreamNotCreated,
                     FrameType.StopSending);
 
             Debug.Assert(stream!.CanWrite);
@@ -383,14 +382,17 @@ namespace System.Net.Quic.Implementations.Managed
                 return CloseConnection(TransportErrorCode.StreamLimitError,
                     QuicTransportError.StreamsLimitViolated, FrameType.MaxStreamData);
 
-            Debug.Assert(stream!.CanWrite);
-
-            var buffer = stream.SendStream!;
-            buffer.UpdateMaxData(frame.MaximumStreamData);
-
-            if (buffer.IsFlushable)
+            if (stream != null)
             {
-                _streams.MarkFlushable(stream!);
+                Debug.Assert(stream!.CanWrite);
+
+                var buffer = stream.SendStream!;
+                buffer.UpdateMaxData(frame.MaximumStreamData);
+
+                if (buffer.IsFlushable)
+                {
+                    _streams.MarkFlushable(stream!);
+                }
             }
 
             return ProcessPacketResult.Ok;
@@ -611,52 +613,55 @@ namespace System.Net.Quic.Implementations.Managed
                     QuicTransportError.StreamsLimitViolated,
                     frameType);
 
-            Debug.Assert(stream!.CanRead);
-
-            var buffer = stream.ReceiveStream!;
-            long writtenOffset = frame.Offset + frame.StreamData.Length;
-
-            if (writtenOffset > buffer.Size)
+            if (stream != null)
             {
-                // receiving data on largest offset yet, check also connection-level control flow
-                ReceivedData += writtenOffset - buffer.Size;
-                if (ReceivedData > _sendLimits.MaxData)
+                Debug.Assert(stream!.CanRead);
+
+                var buffer = stream.ReceiveStream!;
+                long writtenOffset = frame.Offset + frame.StreamData.Length;
+
+                if (writtenOffset > buffer.Size)
                 {
-                    return CloseConnection(TransportErrorCode.FlowControlError, QuicTransportError.MaxDataViolated, frameType);
+                    // receiving data on largest offset yet, check also connection-level control flow
+                    ReceivedData += writtenOffset - buffer.Size;
+                    if (ReceivedData > _sendLimits.MaxData)
+                    {
+                        return CloseConnection(TransportErrorCode.FlowControlError, QuicTransportError.MaxDataViolated, frameType);
+                    }
                 }
-            }
 
-            // check stream-level flow control
-            if (writtenOffset > buffer.MaxData)
-            {
-                return CloseConnection(TransportErrorCode.FlowControlError, QuicTransportError.StreamMaxDataViolated, frameType);
-            }
-
-            if (frame.Fin)
-            {
-                // if trying to change final size, or setting final size lower than already sent data, report error.
-                if (buffer.FinalSizeKnown && writtenOffset != buffer.Size ||
-                    writtenOffset < buffer.Size)
+                // check stream-level flow control
+                if (writtenOffset > buffer.MaxData)
                 {
-                    return CloseConnection(TransportErrorCode.FinalSizeError, QuicTransportError.InconsistentFinalSize, frameType);
+                    return CloseConnection(TransportErrorCode.FlowControlError, QuicTransportError.StreamMaxDataViolated, frameType);
                 }
-            }
 
-            // close if writing past known stream end
-            if (buffer.FinalSizeKnown && writtenOffset > buffer.Size)
-            {
-                return CloseConnection(TransportErrorCode.FinalSizeError, QuicTransportError.WritingPastFinalSize, frameType);
-            }
+                if (frame.Fin)
+                {
+                    // if trying to change final size, or setting final size lower than already sent data, report error.
+                    if (buffer.FinalSizeKnown && writtenOffset != buffer.Size ||
+                        writtenOffset < buffer.Size)
+                    {
+                        return CloseConnection(TransportErrorCode.FinalSizeError, QuicTransportError.InconsistentFinalSize, frameType);
+                    }
+                }
 
-            // RFC: STREAM frames received after sending STOP_SENDING are still counted
-            // toward connection and stream flow control, even though these frames
-            // can be discarded upon receipt.
-            //
-            // we also discard any data received after receiving RESET_STREAM, which might occur
-            // due to packet reordering.
-            if (buffer.StreamState <= RecvStreamState.SizeKnown)
-            {
-                buffer.Receive(frame.Offset, frame.StreamData, frame.Fin);
+                // close if writing past known stream end
+                if (buffer.FinalSizeKnown && writtenOffset > buffer.Size)
+                {
+                    return CloseConnection(TransportErrorCode.FinalSizeError, QuicTransportError.WritingPastFinalSize, frameType);
+                }
+
+                // RFC: STREAM frames received after sending STOP_SENDING are still counted
+                // toward connection and stream flow control, even though these frames
+                // can be discarded upon receipt.
+                //
+                // we also discard any data received after receiving RESET_STREAM, which might occur
+                // due to packet reordering.
+                if (buffer.StreamState <= RecvStreamState.SizeKnown)
+                {
+                    buffer.Receive(frame.Offset, frame.StreamData, frame.Fin);
+                }
             }
 
             return ProcessPacketResult.Ok;
@@ -945,9 +950,7 @@ namespace System.Net.Quic.Implementations.Managed
             while (writer.BytesAvailable > 0 && (stream = _streams.GetFirstStreamForUpdate()) != null)
             {
                 // potentially increase stream limits
-                if (!StreamHelpers.IsLocallyInitiated(IsServer, stream.Id) &&
-                    !stream.FlowControlReleased &&
-                    (stream.ReceiveStream?.CanReleaseFlowControl ?? true) &&
+                if ((stream.ReceiveStream?.CanReleaseFlowControl ?? true) &&
                     (stream.SendStream?.CanReleaseFlowControl ?? true))
                 {
                     ReleaseStream(stream);

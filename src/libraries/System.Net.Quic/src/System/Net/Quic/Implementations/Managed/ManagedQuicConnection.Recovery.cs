@@ -27,7 +27,9 @@ namespace System.Net.Quic.Implementations.Managed
                     // empty frames are sent only to send the FIN bit
                     Debug.Assert(data.Count > 0 || data.Fin);
 
-                    var stream = _streams[data.StreamId];
+                    var stream = GetStream(data.StreamId);
+                    if (stream == null) continue;
+
                     var buffer = stream.SendStream!;
 
                     buffer.OnAck(data.Offset, data.Count, data.Fin);
@@ -47,6 +49,8 @@ namespace System.Net.Quic.Implementations.Managed
             foreach (var frame in packet.MaxStreamDataFrames)
             {
                 var stream = GetStream(frame.StreamId);
+                if (stream == null) continue;
+
                 Debug.Assert(stream.ReceiveStream != null);
                 stream.ReceiveStream.UpdateRemoteMaxData(frame.MaximumStreamData);
             }
@@ -54,6 +58,8 @@ namespace System.Net.Quic.Implementations.Managed
             foreach (long streamId in packet.StreamsReset)
             {
                 var stream = GetStream(streamId);
+                if (stream == null) continue;
+
                 stream.SendStream!.OnResetAcked();
                 if (stream.SendStream!.CanReleaseFlowControl && (stream.ReceiveStream?.CanReleaseFlowControl ?? true))
                 {
@@ -110,6 +116,7 @@ namespace System.Net.Quic.Implementations.Managed
                 else
                 {
                     var stream = GetStream(data.StreamId);
+                    if (stream == null) continue;
 
                     // empty stream frames are only sent to send the Fin bit
                     Debug.Assert(data.Count > 0 || data.Fin);
@@ -125,6 +132,8 @@ namespace System.Net.Quic.Implementations.Managed
             foreach (var frame in packet.MaxStreamDataFrames)
             {
                 var stream = GetStream(frame.StreamId);
+                if (stream == null) continue;
+
                 if (frame.MaximumStreamData > stream.ReceiveStream!.RemoteMaxData)
                 {
                     _streams.MarkForUpdate(stream);
@@ -134,6 +143,8 @@ namespace System.Net.Quic.Implementations.Managed
             foreach (long streamId in packet.StreamsReset)
             {
                 var stream = GetStream(streamId);
+                if (stream == null) continue;
+
                 stream.SendStream!.OnResetLost();
                 _streams.MarkForUpdate(stream);
             }
@@ -141,6 +152,8 @@ namespace System.Net.Quic.Implementations.Managed
             foreach (long streamId in packet.StreamsStopped)
             {
                 var stream = GetStream(streamId);
+                if (stream == null) continue;
+
                 stream.ReceiveStream!.OnStopSendingLost();
                 _streams.MarkForUpdate(stream);
             }
