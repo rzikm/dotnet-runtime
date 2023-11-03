@@ -377,19 +377,23 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         /// <param name="destination">Destination memory.</param>
         /// <param name="token">Cancellation token for the operation.</param>
         /// <returns></returns>
-        internal async ValueTask<int> DeliverAsync(Memory<byte> destination, CancellationToken token)
+        internal ValueTask<int> DeliverAsync(Memory<byte> destination, CancellationToken token)
         {
             int delivered = Deliver(destination.Span);
 
-            if (delivered > 0)
-                return delivered;
-
-            if (StreamState != RecvStreamState.DataRead && await _deliverableChannel.Reader.WaitToReadAsync(token).ConfigureAwait(false))
+            if (delivered > 0 || StreamState == RecvStreamState.DataRead)
             {
-                return Deliver(destination.Span);
+                // fast path for when we have data to deliver or no more data will arrive
+                return ValueTask.FromResult(delivered);
             }
 
-            return 0;
+            return DeliverAsyncSlow(destination, token);
+
+            async ValueTask<int> DeliverAsyncSlow(Memory<byte> destination, CancellationToken token)
+            {
+                await _deliverableChannel.Reader.WaitToReadAsync(token).ConfigureAwait(false);
+                return Deliver(destination.Span);
+            }
         }
 
         /// <summary>

@@ -149,19 +149,36 @@ namespace System.Net.Quic.Implementations.Managed
             return result;
         }
 
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
             ThrowIfNotReadable();
 
-            int result = await ReceiveStream!.DeliverAsync(buffer, cancellationToken).ConfigureAwait(false);
-            if (result > 0)
+            var task = ReceiveStream!.DeliverAsync(buffer, cancellationToken);
+            if (task.IsCompletedSuccessfully)
             {
-                _connection.OnStreamDataRead(this, result);
+                int result = task.GetAwaiter().GetResult();
+                if (result > 0)
+                {
+                    _connection.OnStreamDataRead(this, result);
+                }
+
+                return ValueTask.FromResult(result);
             }
 
-            return result;
+            return ReadAsyncCore(task);
+
+            async ValueTask<int> ReadAsyncCore(ValueTask<int> task)
+            {
+                int result = await task.ConfigureAwait(false);
+                if (result > 0)
+                {
+                    _connection.OnStreamDataRead(this, result);
+                }
+
+                return result;
+            }
         }
 
         internal void AbortRead(long errorCode)
@@ -226,9 +243,8 @@ namespace System.Net.Quic.Implementations.Managed
             ThrowIfConnectionError();
             ThrowIfNotWritable();
 
-            // TODO-RZ: optimize away some of the copying
             await WriteAsyncInternal(buffer, completeWrites, cancellationToken).ConfigureAwait(false);
-            await FlushAsync(cancellationToken).ConfigureAwait(false);
+            await FlushAsyncCore(cancellationToken).ConfigureAwait(false);
         }
 
         public async ValueTask WriteAsync(ReadOnlySequence<byte> buffers, CancellationToken cancellationToken = default)
@@ -242,7 +258,7 @@ namespace System.Net.Quic.Implementations.Managed
                 await WriteAsyncInternal(buffer, false, cancellationToken).ConfigureAwait(false);
             }
 
-            await FlushAsync(cancellationToken).ConfigureAwait(false);
+            await FlushAsyncCore(cancellationToken).ConfigureAwait(false);
         }
 
         public async ValueTask WriteAsync(ReadOnlySequence<byte> buffers, bool endStream, CancellationToken cancellationToken = default)
@@ -256,7 +272,7 @@ namespace System.Net.Quic.Implementations.Managed
                 await WriteAsyncInternal(buffer, endStream, cancellationToken).ConfigureAwait(false);
             }
 
-            await FlushAsync(cancellationToken).ConfigureAwait(false);
+            await FlushAsyncCore(cancellationToken).ConfigureAwait(false);
         }
 
         public ValueTask WriteAsync(ReadOnlyMemory<ReadOnlyMemory<byte>> buffers, CancellationToken cancellationToken = default)
@@ -275,7 +291,7 @@ namespace System.Net.Quic.Implementations.Managed
                 await WriteAsyncInternal(buffers.Span[i], endStream && i == buffers.Length - 1, cancellationToken).ConfigureAwait(false);
             }
 
-            await FlushAsync(cancellationToken).ConfigureAwait(false);
+            await FlushAsyncCore(cancellationToken).ConfigureAwait(false);
         }
 
         public async ValueTask ShutdownCompleted(CancellationToken cancellationToken = default)
@@ -327,14 +343,38 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        public override async Task FlushAsync(CancellationToken cancellationToken)
+        public override Task FlushAsync(CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
             ThrowIfConnectionError();
             ThrowIfNotWritable();
 
-            if (await SendStream!.FlushChunkAsync(cancellationToken).ConfigureAwait(false))
+            return FlushAsyncCore(cancellationToken).AsTask();
+        }
+
+        private ValueTask FlushAsyncCore(CancellationToken cancellationToken)
+        {
+            var task = SendStream!.FlushChunkAsync(cancellationToken);
+
+            if (task.IsCompletedSuccessfully)
             {
+                if (task.Result)
+                {
+                    _connection.OnStreamDataWritten(this);
+                }
+
+                return ValueTask.CompletedTask;
+            }
+
+            return FlushAsyncCoreSlow(task);
+
+            async ValueTask FlushAsyncCoreSlow(ValueTask<bool> task)
+            {
+                if (!await task.ConfigureAwait(false))
+                {
+                    return;
+                }
+
                 _connection.OnStreamDataWritten(this);
             }
         }
@@ -393,7 +433,10 @@ namespace System.Net.Quic.Implementations.Managed
             if (completeWrites)
             {
                 SendStream.MarkEndOfData();
+
+                // flush any remaining data
                 await SendStream.FlushChunkAsync(cancellationToken).ConfigureAwait(false);
+
                 didFlush = true;
             }
 

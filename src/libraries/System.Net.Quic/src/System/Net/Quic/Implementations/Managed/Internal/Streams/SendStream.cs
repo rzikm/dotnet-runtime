@@ -224,22 +224,46 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         ///     Queues the not yet full chunk of stream into flush queue, blocking when control flow limit is not
         ///     sufficient.
         /// </summary>
-        internal async ValueTask<bool> FlushChunkAsync(CancellationToken cancellationToken = default)
+        internal ValueTask<bool> FlushChunkAsync(CancellationToken cancellationToken = default)
         {
             if (_toBeQueuedChunk.Length == 0)
             {
                 // nothing to do
-                return false;
+                return ValueTask.FromResult(false);
             }
 
-            var buffer = await RentBufferAsync(cancellationToken).ConfigureAwait(false);
-            var tmp = _toBeQueuedChunk;
-            _toBeQueuedChunk = new StreamChunk(WrittenBytes, Memory<byte>.Empty, buffer);
+            var task = _bufferLimitSemaphore.WaitAsync(cancellationToken);
+            if (task.IsCompletedSuccessfully)
+            {
+                task.GetAwaiter().GetResult();
+                FlushChunkCore();
+                return ValueTask.FromResult(true);
+            }
 
-            _toSendChannel.Writer.TryWrite(tmp);
-            Interlocked.Add(ref _bytesInChannel, tmp.Length);
+            return FlushChunkAsyncSlow(task);
 
-            return true;
+            async ValueTask<bool> FlushChunkAsyncSlow(Task task)
+            {
+                await task.ConfigureAwait(false);
+
+                // throwing here is a bit ugly, but saves us from registering cancellation on the semaphore
+                // the semaphore is released when stream is aborted to make the caller writer throw
+                ThrowIfAborted();
+
+                FlushChunkCore();
+                return true;
+            }
+
+            void FlushChunkCore()
+            {
+                var buffer = QuicBufferPool.Rent();
+
+                var tmp = _toBeQueuedChunk;
+                _toBeQueuedChunk = new StreamChunk(WrittenBytes, Memory<byte>.Empty, buffer);
+
+                _toSendChannel.Writer.TryWrite(tmp);
+                Interlocked.Add(ref _bytesInChannel, tmp.Length);
+            }
         }
 
         /// <summary>
@@ -289,7 +313,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             MaxData = Math.Max(MaxData, value);
         }
 
-        internal async ValueTask<bool> EnqueueAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        internal ValueTask<bool> EnqueueAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             Debug.Assert(!SizeKnown);
 
@@ -297,21 +321,49 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
 
             while (buffer.Length > 0)
             {
+                if (FillStreamChunk(ref buffer))
+                {
+                    var flushTask = FlushChunkAsync(cancellationToken);
+                    if (!flushTask.IsCompletedSuccessfully)
+                    {
+                        return EnqueueAsyncSlow(flushTask, buffer, cancellationToken);
+                    }
+
+                    hasFlushed = flushTask.GetAwaiter().GetResult();
+                }
+            }
+
+            return ValueTask.FromResult(hasFlushed);
+
+            // writes data from buffer to the chunk, returns true if the chunk should be flushed
+            // automatically slices the provided buffer
+            bool FillStreamChunk(ref ReadOnlyMemory<byte> buffer)
+            {
                 int toWrite = Math.Min(_toBeQueuedChunk.Buffer!.Length - _toBeQueuedChunk.Length, buffer.Length);
                 buffer.Span.Slice(0, toWrite).CopyTo(_toBeQueuedChunk.Buffer!.AsSpan(_toBeQueuedChunk.Length, toWrite));
                 WrittenBytes += toWrite;
                 _toBeQueuedChunk = new StreamChunk(_toBeQueuedChunk.StreamOffset,
                     _toBeQueuedChunk.Buffer!.AsMemory(0, _toBeQueuedChunk.Length + toWrite), _toBeQueuedChunk.Buffer);
 
-                if (_toBeQueuedChunk.Length == _toBeQueuedChunk.Buffer!.Length)
-                {
-                    hasFlushed = await FlushChunkAsync(cancellationToken).ConfigureAwait(false);
-                }
-
                 buffer = buffer.Slice(toWrite);
+
+                return _toBeQueuedChunk.Length == _toBeQueuedChunk.Buffer!.Length;
             }
 
-            return hasFlushed;
+            async ValueTask<bool> EnqueueAsyncSlow(ValueTask<bool> flushTask, ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
+            {
+                await flushTask.ConfigureAwait(false);
+
+                while (buffer.Length > 0)
+                {
+                    if (FillStreamChunk(ref buffer))
+                    {
+                        await FlushChunkAsync(cancellationToken).ConfigureAwait(false);
+                    }
+                }
+
+                return true;
+            }
         }
 
         /// <summary>
@@ -543,15 +595,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
             }, this);
 
             await _writesCompleted.GetTask().ConfigureAwait(false);
-        }
-
-        private async ValueTask<byte[]> RentBufferAsync(CancellationToken cancellationToken)
-        {
-            await _bufferLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            // throwing here is a bit ugly, but saves us from registering cancellation on the semaphore
-            // the semaphore is released when stream is aborted to make the caller writer throw
-            ThrowIfAborted();
-            return QuicBufferPool.Rent();
         }
 
         private void ReturnBuffer(byte[] buffer)
