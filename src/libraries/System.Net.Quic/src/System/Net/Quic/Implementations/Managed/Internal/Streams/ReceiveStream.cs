@@ -264,7 +264,6 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
                     {
                         StreamState = RecvStreamState.DataReceived;
                         _deliverableChannel.Writer.TryComplete();
-                        ReceiveClosed.TrySetResult();
                     }
                 }
             }
@@ -274,6 +273,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Streams
         {
             // no lock necessary here, race condition with incoming reset frame does not affect user.
             StreamState = RecvStreamState.DataRead;
+            ReceiveClosed.TrySetResult();
         }
 
 
