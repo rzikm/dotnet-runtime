@@ -23,7 +23,7 @@ namespace System.Net.Quic.Implementations.Managed
         private bool _doKeyUpdate;
 
 #pragma warning disable IDE0060 // Remove unused parameter
-        internal void ReceiveData(QuicReader reader, EndPoint sender, QuicSocketContext.RecvContext ctx)
+        internal void ReceiveData(QuicReader reader, SocketAddress sender, QuicSocketContext.RecvContext ctx)
 #pragma warning restore IDE0060 // Remove unused parameter
         {
             if (_isDraining)
@@ -390,9 +390,9 @@ namespace System.Net.Quic.Implementations.Managed
             return result;
         }
 
-        internal void SendData(QuicWriter writer, out EndPoint receiver, QuicSocketContext.SendContext ctx)
+        internal void SendData(QuicWriter writer, out SocketAddress receiver, QuicSocketContext.SendContext ctx)
         {
-            receiver = _remoteEndpoint;
+            receiver = _remoteSocketAddress;
 
             ProcessLostPackets(ctx.SentPacketPool);
 

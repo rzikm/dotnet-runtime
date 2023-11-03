@@ -40,7 +40,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
         private readonly QuicWriter _writer = new QuicWriter(Memory<byte>.Empty);
 
-        public QuicConnectionContext(QuicServerSocketContext parent, EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
+        public QuicConnectionContext(QuicServerSocketContext parent, IPEndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
         {
             _parent = parent;
             // TODO-RZ: move processing of first packet to Listener and create connection context only after we get the QuicServerConnectionOptions.
@@ -176,7 +176,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
                 QuicConnectionState previousState = Connection.ConnectionState;
                 _recvContext.Timestamp = Timestamp.Now;
-                Connection.ReceiveData(_reader, datagram.RemoteEndpoint, _recvContext);
+                Connection.ReceiveData(_reader, datagram.RemoteAddress, _recvContext);
                 // the array pools are shared
                 ArrayPool.Return(datagram.Buffer);
 

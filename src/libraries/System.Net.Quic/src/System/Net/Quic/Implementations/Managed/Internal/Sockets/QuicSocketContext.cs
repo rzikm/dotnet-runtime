@@ -19,6 +19,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
     internal abstract class QuicSocketContext
     {
         private readonly IPEndPoint? _localEndPoint;
+        private readonly SocketAddress? _localSocketAddress;
         private readonly EndPoint? _remoteEndPoint;
         private readonly bool _isServer;
         private readonly CancellationTokenSource _socketTaskCts;
@@ -45,6 +46,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             {
                 _socket.Bind(localEndPoint);
                 _localEndPoint = new IPEndPoint(localEndPoint.Address, ((IPEndPoint)_socket.LocalEndPoint!).Port);
+                _localSocketAddress = _localEndPoint.Serialize();
             }
 
             if (remoteEndPoint != null)
@@ -85,6 +87,8 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
             _ = Task.Run(async () =>
             {
+                var socketAddress = new SocketAddress(_socket.AddressFamily);
+
                 while (!_socketTaskCts.IsCancellationRequested)
                 {
                     try
@@ -96,13 +100,14 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
                         if (_remoteEndPoint != null)
                         {
-                            var read = await _socket.ReceiveAsync(buffer).ConfigureAwait(false);
-                            datagram = new DatagramInfo(buffer, read, _remoteEndPoint);
+                            var read = await _socket.ReceiveAsync(buffer, _socketTaskCts.Token).ConfigureAwait(false);
+                            datagram = new DatagramInfo(buffer, read, socketAddress);
                         }
                         else
                         {
-                            var res = await _socket.ReceiveFromAsync(buffer, _localEndPoint!).ConfigureAwait(false);
-                            datagram = new DatagramInfo(buffer, res.ReceivedBytes, res.RemoteEndPoint);
+                            _localSocketAddress!.Buffer.CopyTo(socketAddress.Buffer);
+                            var res = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, socketAddress, _socketTaskCts.Token).ConfigureAwait(false);
+                            datagram = new DatagramInfo(buffer, res, socketAddress);
                         }
 
                         // process only datagrams big enough to contain valid QUIC packets
@@ -114,6 +119,10 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
                         {
                             System.Console.WriteLine($"Received datagram too small to be a QUIC packet: {datagram.Length}");
                         }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // just exit
                     }
                     catch (Exception ex)
                     {
@@ -211,7 +220,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             }
             else
             {
-                _socket.SendTo(datagram.Buffer, 0, datagram.Length, SocketFlags.None, datagram.RemoteEndpoint);
+                _socket.SendTo(datagram.Buffer.AsSpan(0, datagram.Length), SocketFlags.None, datagram.RemoteAddress);
             }
         }
     }

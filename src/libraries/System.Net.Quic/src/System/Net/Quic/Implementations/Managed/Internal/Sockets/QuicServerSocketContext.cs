@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Net.Quic.Implementations.Managed.Internal.Headers;
 using System.Net.Quic.Implementations.Managed.Internal.Tls;
 using System.Threading.Channels;
@@ -14,7 +15,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         private readonly ChannelWriter<object> _newConnections;
         internal QuicListenerOptions ListenerOptions { get; }
 
-        private ImmutableDictionary<EndPoint, QuicConnectionContext> _connectionsByEndpoint;
+        private ImmutableDictionary<SocketAddress, QuicConnectionContext> _connectionsByEndpoint;
 
         private bool _acceptNewConnections;
 
@@ -28,7 +29,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
             ListenerOptions = listenerOptions;
             _tlsFactory = tlsFactory;
 
-            _connectionsByEndpoint = ImmutableDictionary<EndPoint, QuicConnectionContext>.Empty;
+            _connectionsByEndpoint = ImmutableDictionary<SocketAddress, QuicConnectionContext>.Empty;
 
             _acceptNewConnections = true;
         }
@@ -36,12 +37,12 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
         protected override void OnDatagramReceived(in DatagramInfo datagram)
         {
             bool isNewConnection = false;
-            if (!_connectionsByEndpoint.TryGetValue(datagram.RemoteEndpoint, out QuicConnectionContext? connectionCtx))
+            if (!_connectionsByEndpoint.TryGetValue(datagram.RemoteAddress, out QuicConnectionContext? connectionCtx))
             {
                 if (!_acceptNewConnections || HeaderHelpers.GetPacketType(datagram.Buffer[0]) != PacketType.Initial)
                 {
                     // TODO-RZ: send CONNECTION_REFUSED for valid initial packets
-                    System.Console.WriteLine($"TODO: Unable to process packet from {datagram.RemoteEndpoint}, CONNECTION_REFUSED not implemented");
+                    System.Console.WriteLine($"TODO: Unable to process packet from {datagram.RemoteAddress}, CONNECTION_REFUSED not implemented");
                     return;
                 }
 
@@ -56,7 +57,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
                 // too long). This likely will need moving header parsing from Connection to socket context.
                 try
                 {
-                    connectionCtx = new QuicConnectionContext(this, datagram.RemoteEndpoint, dcid, _tlsFactory);
+                    connectionCtx = new QuicConnectionContext(this, datagram.RemoteAddress.GetIPEndPoint(), dcid, _tlsFactory);
                 }
                 catch (Exception ex)
                 {
@@ -64,7 +65,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
                     _newConnections.TryWrite(ex);
                     return;
                 }
-                ImmutableInterlocked.TryAdd(ref _connectionsByEndpoint, datagram.RemoteEndpoint, connectionCtx);
+                ImmutableInterlocked.TryAdd(ref _connectionsByEndpoint, datagram.RemoteAddress, connectionCtx);
 
                 isNewConnection = true;
             }
@@ -145,7 +146,7 @@ namespace System.Net.Quic.Implementations.Managed.Internal.Sockets
 
         protected internal override void DetachConnection(ManagedQuicConnection connection)
         {
-            bool removed = ImmutableInterlocked.TryRemove(ref _connectionsByEndpoint, connection.RemoteEndPoint, out _);
+            bool removed = ImmutableInterlocked.TryRemove(ref _connectionsByEndpoint, connection.RemoteEndPoint.Serialize(), out _);
             if (_connectionsByEndpoint.IsEmpty && !_acceptNewConnections)
             {
                 SignalStop();

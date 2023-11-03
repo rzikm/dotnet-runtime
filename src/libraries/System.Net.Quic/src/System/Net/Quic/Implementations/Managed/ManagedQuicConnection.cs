@@ -139,10 +139,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// </summary>
         internal ITls Tls { get; }
 
-        /// <summary>
-        ///     Remote endpoint address.
-        /// </summary>
-        private readonly EndPoint _remoteEndpoint;
+        private readonly SocketAddress _remoteSocketAddress;
 
         /// <summary>
         ///     Context of the socket serving this connection.
@@ -246,11 +243,6 @@ namespace System.Net.Quic.Implementations.Managed
             _pingWanted = true;
         }
 
-        /// <summary>
-        ///     Unsafe access to the <see cref="RemoteEndPoint"/> field. Does not create a defensive copy!
-        /// </summary>
-        internal EndPoint UnsafeRemoteEndPoint => _remoteEndpoint;
-
         // client constructor
         internal ManagedQuicConnection(QuicClientConnectionOptions options, TlsFactory tlsFactory)
             : base(true)
@@ -258,11 +250,13 @@ namespace System.Net.Quic.Implementations.Managed
             _connectionOptions = options;
             _canAccept = options.MaxInboundUnidirectionalStreams > 0 || options.MaxInboundBidirectionalStreams > 0;
             IsServer = false;
-            _remoteEndpoint = options.RemoteEndPoint!;
 
             _targetHostName = options.ClientAuthenticationOptions!.TargetHost;
-            _socketContext = new SingleConnectionSocketContext(options.LocalEndPoint, _remoteEndpoint, this)
-                .ConnectionContext;
+
+            _socketContext = new SingleConnectionSocketContext(options.LocalEndPoint, options.RemoteEndPoint!, this).ConnectionContext;
+
+            _remoteSocketAddress = RemoteEndPoint.Serialize();
+
             _localTransportParameters = TransportParameters.FromConnectionOptions(options);
             Tls = tlsFactory.CreateClient(this, options, _localTransportParameters);
 
@@ -284,13 +278,14 @@ namespace System.Net.Quic.Implementations.Managed
 
         // server constructor
         internal ManagedQuicConnection(QuicConnectionContext socketContext,
-            EndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
+            IPEndPoint remoteEndpoint, ReadOnlySpan<byte> odcid, TlsFactory tlsFactory)
             : base(true)
         {
 
             IsServer = true;
             _socketContext = socketContext;
-            _remoteEndpoint = remoteEndpoint;
+            _serverRemoteEndpoint = remoteEndpoint;
+            _remoteSocketAddress = _serverRemoteEndpoint.Serialize();
 
             _trace = InitTrace(IsServer, odcid);
             Recovery = new RecoveryController(_trace);
@@ -750,9 +745,10 @@ namespace System.Net.Quic.Implementations.Managed
         public override IPEndPoint LocalEndPoint => _socketContext.LocalEndPoint;
 
         // TODO-RZ: create a defensive copy of the endpoint
+        private readonly IPEndPoint? _serverRemoteEndpoint;
         public override IPEndPoint RemoteEndPoint => IsServer
             // server connections get passed IPEndPoint
-            ? (IPEndPoint)_remoteEndpoint
+            ? (IPEndPoint)_serverRemoteEndpoint!
             // for clients, check the RemoteEndPoint of the Socket
             : _socketContext.RemoteEndPoint!;
 
