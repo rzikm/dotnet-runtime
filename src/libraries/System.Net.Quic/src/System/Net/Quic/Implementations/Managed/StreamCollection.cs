@@ -121,7 +121,41 @@ namespace System.Net.Quic.Implementations.Managed
             }
         }
 
-        internal bool TryGetOrCreateStream(long streamId, bool createIfMissing, bool enforceLimits, ManagedQuicConnection connection, out ManagedQuicStream? stream)
+        internal ManagedQuicStream CreateOutboundStream(bool unidirectional, ManagedQuicConnection connection)
+        {
+            var type = StreamHelpers.GetLocallyInitiatedType(connection.IsServer, unidirectional);
+
+            lock (_streamCounts)
+            {
+                var index = Interlocked.Increment(ref _streamCounts[(int)type]) - 1;
+                // check limits
+                var limit = unidirectional
+                    ? connection._sendLimits.MaxStreamsUni
+                    : connection._sendLimits.MaxStreamsBidi;
+
+
+                long nextId = StreamHelpers.ComposeStreamId(type, index);
+
+                var stream = CreateStream(nextId, true, connection);
+
+                bool success = _streams.TryAdd(nextId, stream);
+                Debug.Assert(success, "Failed to add stream");
+
+                if (index < limit)
+                {
+                    // System.Console.WriteLine($"Starting stream with index from Create: {streamCount}");
+                    stream.NotifyStarted();
+                }
+                else
+                {
+                    // System.Console.WriteLine($"Blocking stream with index from Create: {streamCount}");
+                }
+
+                return stream;
+            }
+        }
+
+        internal bool TryGetOrCreateStream(long streamId, bool createIfMissing, ManagedQuicConnection connection, out ManagedQuicStream? stream)
         {
             // hot path
             if (_streams.TryGetValue(streamId, out stream))
@@ -148,22 +182,15 @@ namespace System.Net.Quic.Implementations.Managed
                 return false;
             }
 
-            bool isLocal = StreamHelpers.IsLocallyInitiated(connection.IsServer, streamId);
+            Debug.Assert(!StreamHelpers.IsLocallyInitiated(connection.IsServer, streamId), "Peer asking for locally initiated stream without us creating it first");
 
-            // we may be called from user therad and racing with connection thread
-            // TODO: separate opening outbound stream from other use cases
-            lock (_streamCounts)
             {
                 // asking for new stream, check limits first
-                var limit = isLocal
-                    ? StreamHelpers.IsBidirectional(streamId)
-                        ? connection._sendLimits.MaxStreamsBidi
-                        : connection._sendLimits.MaxStreamsUni
-                    : StreamHelpers.IsBidirectional(streamId)
-                        ? connection._receiveLimits.MaxStreamsBidi
-                        : connection._receiveLimits.MaxStreamsUni;
+                var limit = StreamHelpers.IsBidirectional(streamId)
+                    ? connection._receiveLimits.MaxStreamsBidi
+                    : connection._receiveLimits.MaxStreamsUni;
 
-                if (index >= limit && enforceLimits)
+                if (index >= limit)
                 {
                     return false;
                 }
@@ -173,26 +200,14 @@ namespace System.Net.Quic.Implementations.Managed
                 {
                     long nextId = StreamHelpers.ComposeStreamId(type, streamCount);
 
-                    stream = CreateStream(nextId, isLocal, connection);
+                    stream = CreateStream(nextId, false, connection);
 
                     bool success = _streams.TryAdd(nextId, stream);
                     Debug.Assert(success, "Failed to add stream");
 
-                    if (!isLocal)
-                    {
-                        success = IncomingStreams.Writer.TryWrite(stream);
-                        // reserving space should be assured by connection stream limits
-                        Debug.Assert(success, "Failed to write into IncomingStreams");
-                    }
-                    else if (streamCount < limit)
-                    {
-                        // System.Console.WriteLine($"Starting stream with index from Create: {streamCount}");
-                        stream.NotifyStarted();
-                    }
-                    else
-                    {
-                        // System.Console.WriteLine($"Blocking stream with index from Create: {streamCount}");
-                    }
+                    success = IncomingStreams.Writer.TryWrite(stream);
+                    // reserving space should be assured by connection stream limits
+                    Debug.Assert(success, "Failed to write into IncomingStreams");
 
                     _streamCounts[(int)type]++;
                 }

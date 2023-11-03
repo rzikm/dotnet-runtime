@@ -79,16 +79,6 @@ namespace System.Net.Quic.Implementations.Managed
         private long ReceivedData { get; set; }
 
         /// <summary>
-        ///     Number of bidirectional streams explicitly opened by this endpoint.
-        /// </summary>
-        private long _bidirStreamsOpened;
-
-        /// <summary>
-        ///     Number of unidirectional streams explicitly opened by this endpoint.
-        /// </summary>
-        private long _uniStreamsOpened;
-
-        /// <summary>
         ///     Opens a new outbound stream with lowest available stream id.
         /// </summary>
         /// <param name="unidirectional">True if the stream should be unidirectional.</param>
@@ -96,16 +86,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// <returns></returns>
         internal ValueTask<ManagedQuicStream> OpenStream(bool unidirectional, CancellationToken cancellationToken = default)
         {
-            var type = StreamHelpers.GetLocallyInitiatedType(IsServer, unidirectional);
-            ref long counter = ref (unidirectional ? ref _uniStreamsOpened : ref _bidirStreamsOpened);
-            long index = Interlocked.Increment(ref counter) - 1;
-
-            if (!_streams.TryGetOrCreateStream(StreamHelpers.ComposeStreamId(type, index), true, false, this, out var stream))
-            {
-                Debug.Assert(false, "Failed to create new outbound stream");
-            }
-
-            Debug.Assert(stream != null, "GetOrCreateStream returned null for opening new stream");
+            var stream = _streams.CreateOutboundStream(unidirectional, this);
 
             if (stream.IsStarted)
             {
@@ -141,7 +122,7 @@ namespace System.Net.Quic.Implementations.Managed
         /// <returns>True if the stream limit was not validated, false otherwise.</returns>
         private bool TryGetOrCreateStream(long streamId, out ManagedQuicStream? stream)
         {
-            return _streams.TryGetOrCreateStream(streamId, !StreamHelpers.IsLocallyInitiated(IsServer, streamId), true, this, out stream);
+            return _streams.TryGetOrCreateStream(streamId, !StreamHelpers.IsLocallyInitiated(IsServer, streamId), this, out stream);
         }
 
         internal ManagedQuicStream? AcceptStream()
