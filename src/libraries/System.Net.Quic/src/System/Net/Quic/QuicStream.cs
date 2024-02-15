@@ -548,19 +548,25 @@ public sealed partial class QuicStream
     }
     private unsafe int HandleEventSendComplete(ref SEND_COMPLETE_DATA data)
     {
+        long timestamp = Stopwatch.GetTimestamp();
         // Release buffer and unlock.
         _sendBuffers.Reset();
+        TimeCheck(ref timestamp);
         Volatile.Write(ref _sendLocked, 0);
+        TimeCheck(ref timestamp);
 
         // There might be stored exception from when we held the lock.
         Exception? exception = Volatile.Read(ref _sendException);
         if (exception is not null)
         {
+            TimeCheck(ref timestamp);
             _sendTcs.TrySetException(exception, final: true);
+            TimeCheck(ref timestamp);
         }
         if (data.Canceled == 0)
         {
             _sendTcs.TrySetResult();
+            TimeCheck(ref timestamp);
         }
         // If Canceled != 0, we either aborted write, received PEER_RECEIVE_ABORTED or will receive SHUTDOWN_COMPLETE(ConnectionClose) later, all of which completes the _sendTcs.
         return QUIC_STATUS_SUCCESS;
@@ -637,6 +643,17 @@ public sealed partial class QuicStream
             QUIC_STREAM_EVENT_TYPE.PEER_ACCEPTED => HandleEventPeerAccepted(),
             _ => QUIC_STATUS_SUCCESS
         };
+
+    private static void TimeCheck(ref long timestamp)
+    {
+        var nextTimestamp = Stopwatch.GetTimestamp();
+        var elapsed = Stopwatch.GetElapsedTime(timestamp, nextTimestamp);
+        timestamp = nextTimestamp;
+        if (elapsed.TotalMilliseconds > 10)
+        {
+            System.Console.WriteLine($"Event processing took {elapsed.TotalMilliseconds}ms at {new System.Diagnostics.StackTrace(1, true)}");
+        }
+    }
 
 #pragma warning disable CS3016
     [UnmanagedCallersOnly(CallConvs = new Type[] { typeof(CallConvCdecl) })]
