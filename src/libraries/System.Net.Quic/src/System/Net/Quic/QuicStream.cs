@@ -672,6 +672,7 @@ public sealed partial class QuicStream
             return QUIC_STATUS_INVALID_STATE;
         }
 
+        var timestamp = Stopwatch.GetTimestamp();
         try
         {
             // Process the event.
@@ -688,6 +689,14 @@ public sealed partial class QuicStream
                 NetEventSource.Error(instance, $"{instance} Exception while processing event {streamEvent->Type}: {ex}");
             }
             return QUIC_STATUS_INTERNAL_ERROR;
+        }
+        finally
+        {
+            var elapsed = Stopwatch.GetElapsedTime(timestamp);
+            if (elapsed.TotalMilliseconds > 1)
+            {
+                System.Console.WriteLine($"Event processing took {elapsed.TotalMilliseconds}ms for {streamEvent->Type}");
+            }
         }
     }
 
