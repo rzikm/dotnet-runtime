@@ -7,6 +7,9 @@ namespace System.ComponentModel.DataAnnotations
         AllowMultiple = false)]
     public sealed class EmailAddressAttribute : DataTypeAttribute
     {
+        private static bool EnableFullDomainLiterals { get; } =
+            AppContext.TryGetSwitch("System.Net.AllowFullDomainLiterals", out bool enable) ? enable : false;
+
         public EmailAddressAttribute()
             : base(DataType.EmailAddress)
         {
@@ -27,7 +30,7 @@ namespace System.ComponentModel.DataAnnotations
                 return false;
             }
 
-            if (valueAsString.AsSpan().ContainsAny('\r', '\n'))
+            if (!EnableFullDomainLiterals && valueAsString.ContainsAny('\r', '\n'))
             {
                 return false;
             }
