@@ -14,6 +14,7 @@ using System.Security.Authentication.ExtendedProtection;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Net.Mail
 {
@@ -85,15 +86,21 @@ namespace System.Net.Mail
             _stream = _tcpClient.GetStream();
         }
 
-        internal IAsyncResult BeginInitializeConnection(string host, int port, AsyncCallback? callback, object? state)
+        internal async Task InitializeConnectionAsync(string host, int port)
         {
-            return _tcpClient!.BeginConnect(host, port, callback, state);
+            await _tcpClient!.ConnectAsync(host, port).ConfigureAwait(false);
+            _stream = _tcpClient.GetStream();
         }
 
+        internal IAsyncResult BeginInitializeConnection(string host, int port, AsyncCallback? callback, object? state)
+        {
+            return TaskToAsyncResult.Begin(InitializeConnectionAsync(host, port), callback, state);
+        }
+
+#pragma warning disable CA1822
         internal void EndInitializeConnection(IAsyncResult result)
         {
-            _tcpClient!.EndConnect(result);
-            _stream = _tcpClient.GetStream();
+            TaskToAsyncResult.End(result);
         }
 
         internal IAsyncResult BeginGetConnection(ContextAwareResult outerResult, AsyncCallback? callback, object? state, string host, int port)
@@ -103,15 +110,20 @@ namespace System.Net.Mail
             return result;
         }
 
-        internal IAsyncResult BeginFlush(AsyncCallback? callback, object? state)
+        internal async Task FlushAsync(CancellationToken cancellationToken = default)
         {
-            return _stream!.BeginWrite(_bufferBuilder.GetBuffer(), 0, _bufferBuilder.Length, callback, state);
+            await _stream!.WriteAsync(_bufferBuilder.GetBuffer().AsMemory(0, _bufferBuilder.Length), cancellationToken).ConfigureAwait(false);
+            _bufferBuilder.Reset();
         }
 
-        internal void EndFlush(IAsyncResult result)
+        internal IAsyncResult BeginFlush(AsyncCallback? callback, object? state)
         {
-            _stream!.EndWrite(result);
-            _bufferBuilder.Reset();
+            return TaskToAsyncResult.Begin(FlushAsync(), callback, state);
+        }
+
+        internal static void EndFlush(IAsyncResult result)
+        {
+            TaskToAsyncResult.End(result);
         }
 
         internal void Flush()

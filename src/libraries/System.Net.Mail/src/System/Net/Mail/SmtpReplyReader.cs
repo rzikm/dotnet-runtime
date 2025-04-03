@@ -3,12 +3,18 @@
 
 using System;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace System.Net.Mail
 {
     //streams are read only; return of 0 means end of server's reply
-    internal sealed class SmtpReplyReader
+    internal sealed class SmtpReplyReader : IDisposable
     {
+        public void Dispose()
+        {
+            Close();
+        }
+
         private readonly SmtpReplyReaderFactory _reader;
 
         internal SmtpReplyReader(SmtpReplyReaderFactory reader)
@@ -18,12 +24,12 @@ namespace System.Net.Mail
 
         internal IAsyncResult BeginReadLines(AsyncCallback? callback, object? state)
         {
-            return _reader.BeginReadLines(this, callback, state);
+            return TaskToAsyncResult.Begin(ReadLinesAsync(), callback, state);
         }
 
         internal IAsyncResult BeginReadLine(AsyncCallback? callback, object? state)
         {
-            return _reader.BeginReadLine(this, callback, state);
+            return TaskToAsyncResult.Begin(ReadLineAsync(), callback, state);
         }
 
         public void Close()
@@ -33,12 +39,12 @@ namespace System.Net.Mail
 
         internal static LineInfo[] EndReadLines(IAsyncResult result)
         {
-            return SmtpReplyReaderFactory.EndReadLines(result);
+            return TaskToAsyncResult.End<LineInfo[]>(result);
         }
 
         internal static LineInfo EndReadLine(IAsyncResult result)
         {
-            return SmtpReplyReaderFactory.EndReadLine(result);
+            return TaskToAsyncResult.End<LineInfo>(result);
         }
 
         internal LineInfo[] ReadLines()
@@ -49,6 +55,16 @@ namespace System.Net.Mail
         internal LineInfo ReadLine()
         {
             return _reader.ReadLine(this);
+        }
+
+        internal Task<LineInfo[]> ReadLinesAsync()
+        {
+            return _reader.ReadLinesAsync(this);
+        }
+
+        internal Task<LineInfo> ReadLineAsync()
+        {
+            return _reader.ReadLineAsync(this);
         }
     }
 }
