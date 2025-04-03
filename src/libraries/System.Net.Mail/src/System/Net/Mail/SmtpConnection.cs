@@ -105,9 +105,135 @@ namespace System.Net.Mail
 
         internal IAsyncResult BeginGetConnection(ContextAwareResult outerResult, AsyncCallback? callback, object? state, string host, int port)
         {
-            ConnectAndHandshakeAsyncResult result = new ConnectAndHandshakeAsyncResult(this, host, port, outerResult, callback, state);
-            result.GetConnection();
-            return result;
+            return TaskToAsyncResult.Begin(GetConnectionAsync(host, port), callback, state);
+        }
+
+        internal static void EndGetConnection(IAsyncResult result)
+        {
+            TaskToAsyncResult.End(result);
+        }
+
+        internal async Task GetConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
+        {
+            if (_isConnected)
+            {
+                throw new InvalidOperationException(SR.SmtpAlreadyConnected);
+            }
+
+            // Initialize the connection
+            await InitializeConnectionAsync(host, port).ConfigureAwait(false);
+            _responseReader = new SmtpReplyReaderFactory(_stream!);
+
+            // Read the initial greeting
+            LineInfo info = _responseReader.GetNextReplyReader().ReadLine();
+
+            switch (info.StatusCode)
+            {
+                case SmtpStatusCode.ServiceReady:
+                    break;
+                default:
+                    throw new SmtpException(info.StatusCode, info.Line, true);
+            }
+
+            // Try EHLO first
+            try
+            {
+                _extensions = await EHelloCommand.SendAsync(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
+                ParseExtensions(_extensions);
+            }
+            catch (SmtpException e)
+            {
+                if ((e.StatusCode != SmtpStatusCode.CommandUnrecognized)
+                    && (e.StatusCode != SmtpStatusCode.CommandNotImplemented))
+                {
+                    throw;
+                }
+
+                // Fall back to HELO if EHLO fails
+                await HelloCommand.SendAsync(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
+                // If ehello isn't supported, assume basic login
+                _supportedAuth = SupportedAuth.Login;
+            }
+
+            // Handle SSL/TLS
+            if (_enableSsl)
+            {
+                if (!_serverSupportsStartTls)
+                {
+                    // Either TLS is already established or server does not support TLS
+                    if (!(_stream is SslStream))
+                    {
+                        throw new SmtpException(SR.MailServerDoesNotSupportStartTls);
+                    }
+                }
+
+                await StartTlsCommand.SendAsync(this, cancellationToken).ConfigureAwait(false);
+#pragma warning disable SYSLIB0014 // ServicePointManager is obsolete
+                SslStream sslStream = new SslStream(_stream!, false, ServicePointManager.ServerCertificateValidationCallback);
+
+                await sslStream.AuthenticateAsClientAsync(
+                    host,
+                    _clientCertificates,
+                    (SslProtocols)ServicePointManager.SecurityProtocol, // enums use same values
+                    ServicePointManager.CheckCertificateRevocationList).ConfigureAwait(false);
+#pragma warning restore SYSLIB0014 // ServicePointManager is obsolete
+
+                _stream = sslStream;
+                _responseReader = new SmtpReplyReaderFactory(_stream);
+
+                // According to RFC 3207: The client SHOULD send an EHLO command
+                // as the first command after a successful TLS negotiation.
+                _extensions = await EHelloCommand.SendAsync(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
+                ParseExtensions(_extensions);
+            }
+
+            // If credentials were supplied, attempt authentication
+            if (_credentials != null)
+            {
+                for (int i = 0; i < _authenticationModules.Length; i++)
+                {
+                    // Only authenticate if the auth protocol is supported
+                    if (!AuthSupported(_authenticationModules[i]))
+                    {
+                        continue;
+                    }
+
+                    NetworkCredential? credential = _credentials.GetCredential(host, port, _authenticationModules[i].AuthenticationType);
+                    if (credential == null)
+                        continue;
+
+                    Authorization? auth = SetContextAndTryAuthenticate(_authenticationModules[i], credential, null);
+
+                    if (auth != null && auth.Message != null)
+                    {
+                        info = await AuthCommand.SendAsync(this, _authenticationModules[i].AuthenticationType, auth.Message, cancellationToken).ConfigureAwait(false);
+
+                        if (info.StatusCode == SmtpStatusCode.CommandParameterNotImplemented)
+                        {
+                            continue;
+                        }
+
+                        while ((int)info.StatusCode == 334)
+                        {
+                            auth = _authenticationModules[i].Authenticate(info.Line, null, this, _client!.TargetName, null);
+                            if (auth == null)
+                            {
+                                throw new SmtpException(SR.SmtpAuthenticationFailed);
+                            }
+                            info = await AuthCommand.SendAsync(this, auth.Message, cancellationToken).ConfigureAwait(false);
+
+                            if ((int)info.StatusCode == 235)
+                            {
+                                _authenticationModules[i].CloseContext(this);
+                                _isConnected = true;
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            _isConnected = true;
         }
 
         internal async Task FlushAsync(CancellationToken cancellationToken = default)
@@ -373,11 +499,6 @@ namespace System.Net.Mail
             internal readonly ChannelBinding? _token;
 
             internal Authorization? _result;
-        }
-
-        internal static void EndGetConnection(IAsyncResult result)
-        {
-            ConnectAndHandshakeAsyncResult.End(result);
         }
 
         internal Stream GetClosableStream()

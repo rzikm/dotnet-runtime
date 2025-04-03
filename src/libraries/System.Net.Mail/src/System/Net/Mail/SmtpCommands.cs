@@ -8,6 +8,7 @@ using System.IO;
 using System.Net.Mime;
 using System.Runtime.ExceptionServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace System.Net.Mail
@@ -24,9 +25,9 @@ namespace System.Net.Mail
             return info.StatusCode;
         }
 
-        internal static async Task<LineInfo> SendAsync(SmtpConnection conn)
+        internal static async Task<LineInfo> SendAsync(SmtpConnection conn, CancellationToken cancellationToken = default)
         {
-            await conn.FlushAsync().ConfigureAwait(false);
+            await conn.FlushAsync(cancellationToken).ConfigureAwait(false);
             using SmtpReplyReader reader = conn.Reader!.GetNextReplyReader();
             return await reader.ReadLineAsync().ConfigureAwait(false);
         }
@@ -46,9 +47,9 @@ namespace System.Net.Mail
 
     internal static class ReadLinesCommand
     {
-        internal static async Task<LineInfo[]> SendAsync(SmtpConnection conn)
+        internal static async Task<LineInfo[]> SendAsync(SmtpConnection conn, CancellationToken cancellationToken = default)
         {
-            await conn.FlushAsync().ConfigureAwait(false);
+            await conn.FlushAsync(cancellationToken).ConfigureAwait(false);
             return await conn.Reader!.GetNextReplyReader().ReadLinesAsync().ConfigureAwait(false);
         }
 
@@ -71,17 +72,17 @@ namespace System.Net.Mail
 
     internal static class AuthCommand
     {
-        internal static async Task<LineInfo> SendAsync(SmtpConnection conn, string type, string message)
+        internal static async Task<LineInfo> SendAsync(SmtpConnection conn, string type, string message, CancellationToken cancellationToken = default)
         {
             PrepareCommand(conn, type, message);
-            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn).ConfigureAwait(false);
+            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             return CheckResponse(lines);
         }
 
-        internal static async Task<LineInfo> SendAsync(SmtpConnection conn, string? message)
+        internal static async Task<LineInfo> SendAsync(SmtpConnection conn, string? message, CancellationToken cancellationToken = default)
         {
             PrepareCommand(conn, message);
-            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn).ConfigureAwait(false);
+            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             return CheckResponse(lines);
         }
 
@@ -140,10 +141,10 @@ namespace System.Net.Mail
 
     internal static class DataCommand
     {
-        internal static async Task SendAsync(SmtpConnection conn)
+        internal static async Task SendAsync(SmtpConnection conn, CancellationToken cancellationToken = default)
         {
             PrepareCommand(conn);
-            LineInfo info = await CheckCommand.SendAsync(conn).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
         }
 
@@ -244,10 +245,10 @@ namespace System.Net.Mail
 
     internal static class EHelloCommand
     {
-        internal static async Task<string[]> SendAsync(SmtpConnection conn, string domain)
+        internal static async Task<string[]> SendAsync(SmtpConnection conn, string domain, CancellationToken cancellationToken = default)
         {
             PrepareCommand(conn, domain);
-            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn).ConfigureAwait(false);
+            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             return CheckResponse(lines);
         }
 
@@ -305,10 +306,10 @@ namespace System.Net.Mail
 
     internal static class HelloCommand
     {
-        internal static async Task SendAsync(SmtpConnection conn, string domain)
+        internal static async Task SendAsync(SmtpConnection conn, string domain, CancellationToken cancellationToken = default)
         {
             PrepareCommand(conn, domain);
-            LineInfo info = await CheckCommand.SendAsync(conn).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
         }
 
@@ -365,10 +366,10 @@ namespace System.Net.Mail
 
     internal static class StartTlsCommand
     {
-        internal static async Task SendAsync(SmtpConnection conn)
+        internal static async Task SendAsync(SmtpConnection conn, CancellationToken cancellationToken = default)
         {
             PrepareCommand(conn);
-            LineInfo info = await CheckCommand.SendAsync(conn).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
         }
 
@@ -426,10 +427,10 @@ namespace System.Net.Mail
 
     internal static class MailCommand
     {
-        internal static async Task SendAsync(SmtpConnection conn, ReadOnlyMemory<byte> command, MailAddress from, bool allowUnicode)
+        internal static async Task SendAsync(SmtpConnection conn, ReadOnlyMemory<byte> command, MailAddress from, bool allowUnicode, CancellationToken cancellationToken = default)
         {
             PrepareCommand(conn, command, from, allowUnicode);
-            LineInfo info = await CheckCommand.SendAsync(conn).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
         }
 
@@ -493,10 +494,10 @@ namespace System.Net.Mail
 
     internal static class RecipientCommand
     {
-        internal static async Task<(bool success, string response)> SendAsync(SmtpConnection conn, string to)
+        internal static async Task<(bool success, string response)> SendAsync(SmtpConnection conn, string to, CancellationToken cancellationToken = default)
         {
             PrepareCommand(conn, to);
-            LineInfo info = await CheckCommand.SendAsync(conn).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             return (CheckResponse(info.StatusCode, info.Line), info.Line);
         }
 

@@ -117,34 +117,44 @@ namespace System.Net.Mail
             finally { }
         }
 
-        internal IAsyncResult BeginGetConnection(ContextAwareResult outerResult, AsyncCallback? callback, object? state, string host, int port)
+        internal async Task GetConnectionAsync(ContextAwareResult? outerResult, string host, int port, CancellationToken cancellationToken = default)
         {
-            IAsyncResult? result = null;
             try
             {
-                _connection = new SmtpConnection(this, _client, _credentials, _authenticationModules);
+                lock (this)
+                {
+                    _connection = new SmtpConnection(this, _client, _credentials, _authenticationModules);
+                    if (_shouldAbort)
+                    {
+                        _connection.Abort();
+                    }
+                    _shouldAbort = false;
+                }
+
                 if (NetEventSource.Log.IsEnabled()) NetEventSource.Associate(this, _connection);
+
                 if (EnableSsl)
                 {
                     _connection.EnableSsl = true;
                     _connection.ClientCertificates = ClientCertificates;
                 }
 
-                result = _connection.BeginGetConnection(outerResult, callback, state, host, port);
+                await _connection.GetConnectionAsync(host, port, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception innerException)
             {
                 throw new SmtpException(SR.MailHostNotFound, innerException);
             }
+        }
 
-            if (NetEventSource.Log.IsEnabled()) NetEventSource.Info(this, "Sync completion");
-
-            return result;
+        internal IAsyncResult BeginGetConnection(ContextAwareResult outerResult, AsyncCallback? callback, object? state, string host, int port)
+        {
+            return TaskToAsyncResult.Begin(GetConnectionAsync(outerResult, host, port), callback, state);
         }
 
         internal static void EndGetConnection(IAsyncResult result)
         {
-            SmtpConnection.EndGetConnection(result);
+            TaskToAsyncResult.End(result);
         }
 
         internal IAsyncResult BeginSendMail(MailAddress sender, MailAddressCollection recipients,

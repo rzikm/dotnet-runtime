@@ -647,8 +647,10 @@ namespace System.Net.Mail
                             }
                             else
                             {
-                                if (NetEventSource.Log.IsEnabled()) NetEventSource.Info(this, $"Calling BeginConnect. Transport: {_transport}");
-                                _transport.BeginGetConnection(_operationCompletedResult, ConnectCallback, _operationCompletedResult, Host!, Port);
+                                if (NetEventSource.Log.IsEnabled()) NetEventSource.Info(this, $"Calling GetConnectionAsync. Transport: {_transport}");
+
+                                // Use the new async method instead of BeginGetConnection
+                                _ = ConnectAndSendAsync(_operationCompletedResult, Host!, Port);
                             }
 
                             _operationCompletedResult.FinishPostingAsyncOp();
@@ -679,6 +681,28 @@ namespace System.Net.Mail
                 throw new SmtpException(SR.SmtpSendMailFailure, e);
             }
         }
+
+        private async Task ConnectAndSendAsync(ContextAwareResult state, string host, int port)
+        {
+            try
+            {
+                await _transport.GetConnectionAsync(state, host, port).ConfigureAwait(false);
+
+                if (_cancelled)
+                {
+                    Complete(null, state);
+                }
+                else
+                {
+                    SendMailAsync(state);
+                }
+            }
+            catch (Exception e)
+            {
+                Complete(e, state);
+            }
+        }
+
 
         private static bool IsSystemNetworkCredentialInCache(CredentialCache cache)
         {
