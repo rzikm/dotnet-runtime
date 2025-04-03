@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net.Mime;
 using System.Runtime.ExceptionServices;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace System.Net.Mail
 {
@@ -139,7 +140,8 @@ namespace System.Net.Mail
                     // extract the encoding from =?encoding?BorQ?blablalba?=
                     inputEncoding = MimeBasePart.DecodeEncoding(value);
                 }
-                catch (ArgumentException) { };
+                catch (ArgumentException) { }
+                ;
 
                 if (inputEncoding != null && value != null)
                 {
@@ -240,6 +242,22 @@ namespace System.Net.Mail
 
         #region Sending
 
+        internal async Task SendAsync(BaseWriter writer, bool allowUnicode)
+        {
+            PrepareHeaders(allowUnicode);
+            writer.WriteHeaders(Headers, allowUnicode);
+
+            if (Content != null)
+            {
+                await Content.SendAsync(writer, allowUnicode).ConfigureAwait(false);
+            }
+            else
+            {
+                using var stream = writer.GetContentStream();
+                // No content to write, just close the stream
+            }
+        }
+
         internal void EmptySendCallback(IAsyncResult result)
         {
             Exception? e = null;
@@ -273,60 +291,6 @@ namespace System.Net.Mail
             internal BaseWriter _writer;
         }
 
-        internal IAsyncResult BeginSend(BaseWriter writer, bool allowUnicode,
-            AsyncCallback? callback, object? state)
-        {
-            PrepareHeaders(allowUnicode);
-            writer.WriteHeaders(Headers, allowUnicode);
-
-            if (Content != null)
-            {
-                return Content.BeginSend(writer, callback, allowUnicode, state);
-            }
-            else
-            {
-                LazyAsyncResult result = new LazyAsyncResult(this, state, callback);
-                IAsyncResult newResult = writer.BeginGetContentStream(EmptySendCallback, new EmptySendContext(writer, result));
-                if (newResult.CompletedSynchronously)
-                {
-                    BaseWriter.EndGetContentStream(newResult).Close();
-                    result.InvokeCallback();
-                }
-                return result;
-            }
-        }
-
-        internal void EndSend(IAsyncResult asyncResult)
-        {
-            ArgumentNullException.ThrowIfNull(asyncResult);
-
-            if (Content != null)
-            {
-                Content.EndSend(asyncResult);
-            }
-            else
-            {
-                LazyAsyncResult? castedAsyncResult = asyncResult as LazyAsyncResult;
-
-                if (castedAsyncResult == null || castedAsyncResult.AsyncObject != this)
-                {
-                    throw new ArgumentException(SR.net_io_invalidasyncresult);
-                }
-
-                if (castedAsyncResult.EndCalled)
-                {
-                    throw new InvalidOperationException(SR.Format(SR.net_io_invalidendcall, nameof(EndSend)));
-                }
-
-                castedAsyncResult.InternalWaitForCompletion();
-                castedAsyncResult.EndCalled = true;
-                if (castedAsyncResult.Result is Exception e)
-                {
-                    ExceptionDispatchInfo.Throw(e);
-                }
-            }
-        }
-
         internal void Send(BaseWriter writer, bool sendEnvelope, bool allowUnicode)
         {
             if (sendEnvelope)
@@ -346,6 +310,16 @@ namespace System.Net.Mail
             {
                 writer.GetContentStream().Close();
             }
+        }
+
+        internal IAsyncResult BeginSend(BaseWriter writer, bool allowUnicode, AsyncCallback? callback, object? state)
+        {
+            return TaskToAsyncResult.Begin(SendAsync(writer, allowUnicode), callback, state);
+        }
+
+        internal void EndSend(IAsyncResult asyncResult)
+        {
+            TaskToAsyncResult.End(asyncResult);
         }
 
         internal void PrepareEnvelopeHeaders(bool allowUnicode)

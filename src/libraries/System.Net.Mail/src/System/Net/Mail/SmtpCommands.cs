@@ -493,11 +493,11 @@ namespace System.Net.Mail
 
     internal static class RecipientCommand
     {
-        internal static async Task<bool> SendAsync(SmtpConnection conn, string to)
+        internal static async Task<(bool success, string response)> SendAsync(SmtpConnection conn, string to)
         {
             PrepareCommand(conn, to);
             LineInfo info = await CheckCommand.SendAsync(conn).ConfigureAwait(false);
-            return CheckResponse(info.StatusCode, info.Line);
+            return (CheckResponse(info.StatusCode, info.Line), info.Line);
         }
 
         internal static IAsyncResult BeginSend(SmtpConnection conn, string to, AsyncCallback? callback, object? state)

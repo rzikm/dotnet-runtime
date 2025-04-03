@@ -4,10 +4,11 @@
 using System.Collections.Specialized;
 using System.Net.Mail;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace System.Net.Mime
 {
-    internal class MimeBasePart
+    internal abstract class MimeBasePart
     {
         internal const string DefaultCharSet = "utf-8";
 
@@ -191,34 +192,16 @@ namespace System.Net.Mime
             throw new NotImplementedException();
         }
 
-        internal virtual IAsyncResult BeginSend(BaseWriter writer, AsyncCallback? callback,
-            bool allowUnicode, object? state)
+        internal abstract Task SendAsync(BaseWriter writer, bool allowUnicode);
+
+        internal IAsyncResult BeginSend(BaseWriter writer, AsyncCallback? callback, bool allowUnicode, object? state)
         {
-            throw new NotImplementedException();
+            return TaskToAsyncResult.Begin(SendAsync(writer, allowUnicode), callback, state);
         }
 
         internal void EndSend(IAsyncResult asyncResult)
         {
-            ArgumentNullException.ThrowIfNull(asyncResult);
-
-            LazyAsyncResult? castedAsyncResult = asyncResult as MimePartAsyncResult;
-
-            if (castedAsyncResult == null || castedAsyncResult.AsyncObject != this)
-            {
-                throw new ArgumentException(SR.net_io_invalidasyncresult, nameof(asyncResult));
-            }
-
-            if (castedAsyncResult.EndCalled)
-            {
-                throw new InvalidOperationException(SR.Format(SR.net_io_invalidendcall, nameof(EndSend)));
-            }
-
-            castedAsyncResult.InternalWaitForCompletion();
-            castedAsyncResult.EndCalled = true;
-            if (castedAsyncResult.Result is Exception)
-            {
-                throw (Exception)castedAsyncResult.Result;
-            }
+            TaskToAsyncResult.End(asyncResult);
         }
 
         internal sealed class MimePartAsyncResult : LazyAsyncResult

@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net.Mime;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace System.Net.Mail
 {
@@ -435,16 +436,24 @@ namespace System.Net.Mail
             _message.Send(writer, sendEnvelope, allowUnicode);
         }
 
+        internal Task SendAsync(BaseWriter writer, bool allowUnicode)
+        {
+            SetContent(allowUnicode);
+            return _message.SendAsync(writer, allowUnicode);
+        }
+
         internal IAsyncResult BeginSend(BaseWriter writer, bool allowUnicode,
             AsyncCallback? callback, object? state)
         {
-            SetContent(allowUnicode);
-            return _message.BeginSend(writer, allowUnicode, callback, state);
+            return TaskToAsyncResult.Begin(
+                SendAsync(writer, allowUnicode),
+                callback,
+                state);
         }
 
         internal void EndSend(IAsyncResult asyncResult)
         {
-            _message.EndSend(asyncResult);
+            TaskToAsyncResult.End(asyncResult);
         }
 
         internal string BuildDeliveryStatusNotificationString()

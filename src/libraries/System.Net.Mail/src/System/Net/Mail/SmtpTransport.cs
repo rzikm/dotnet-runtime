@@ -7,6 +7,7 @@ using System.Net.Mime;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace System.Net.Mail
 {
@@ -149,14 +150,49 @@ namespace System.Net.Mail
         internal IAsyncResult BeginSendMail(MailAddress sender, MailAddressCollection recipients,
             string deliveryNotify, bool allowUnicode, AsyncCallback? callback, object? state)
         {
+            Task<MailWriter> task = SendMailAsync(sender, recipients, deliveryNotify, allowUnicode);
+            return TaskToAsyncResult.Begin(task, callback, state);
+        }
+
+        internal static MailWriter EndSendMail(IAsyncResult result)
+        {
+            return TaskToAsyncResult.End<MailWriter>(result);
+        }
+
+        internal async Task<MailWriter> SendMailAsync(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode)
+        {
             ArgumentNullException.ThrowIfNull(sender);
             ArgumentNullException.ThrowIfNull(recipients);
 
-            SendMailAsyncResult result = new SendMailAsyncResult(_connection!, sender, recipients,
-                allowUnicode, _connection!.DSNEnabled ? deliveryNotify : null,
-                callback, state);
-            result.Send();
-            return result;
+            MailCommand.Send(_connection!, SmtpCommands.Mail, sender, allowUnicode);
+            _failedRecipientExceptions.Clear();
+
+            foreach (MailAddress address in recipients)
+            {
+                string smtpAddress = address.GetSmtpAddress(allowUnicode);
+                string to = smtpAddress + (_connection!.DSNEnabled ? deliveryNotify : string.Empty);
+                (bool success, string? response) = await RecipientCommand.SendAsync(_connection, to).ConfigureAwait(false);
+                if (!success)
+                {
+                    _failedRecipientExceptions.Add(
+                        new SmtpFailedRecipientException(_connection.Reader!.StatusCode, smtpAddress, response));
+                }
+            }
+
+            if (_failedRecipientExceptions.Count > 0)
+            {
+                if (_failedRecipientExceptions.Count == 1)
+                {
+                    throw _failedRecipientExceptions[0];
+                }
+                else
+                {
+                    throw new SmtpFailedRecipientsException(_failedRecipientExceptions, _failedRecipientExceptions.Count == recipients.Count);
+                }
+            }
+
+            await DataCommand.SendAsync(_connection!).ConfigureAwait(false);
+            return new MailWriter(_connection!.GetClosableStream(), encodeForTransport: true);
         }
 
         internal void ReleaseConnection()
@@ -176,17 +212,6 @@ namespace System.Net.Mail
                 {
                     _shouldAbort = true;
                 }
-            }
-        }
-
-        internal static MailWriter EndSendMail(IAsyncResult result)
-        {
-            try
-            {
-                return SendMailAsyncResult.End(result);
-            }
-            finally
-            {
             }
         }
 

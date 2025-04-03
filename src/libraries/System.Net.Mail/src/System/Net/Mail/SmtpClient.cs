@@ -902,40 +902,32 @@ namespace System.Net.Mail
             }
         }
 
-
-        private void SendMailCallback(IAsyncResult result)
+        private async void SendMailAsync(object state)
         {
             try
             {
-                _writer = SmtpTransport.EndSendMail(result);
-                // If some recipients failed but not others, send the e-mail anyway, but then return the
-                // "Non-fatal" exception reporting the failures.  The sync code path does it this way.
-                // Fatal exceptions would have thrown above at transport.EndSendMail(...)
-                SendMailAsyncResult sendResult = (SendMailAsyncResult)result;
-                // Save these and throw them later in SendMessageCallback, after the message has sent.
-                _failedRecipientException = sendResult.GetFailedRecipientException();
-            }
-            catch (Exception e)
-            {
-                Complete(e, result.AsyncState!);
-                return;
-            }
+                // Detected during Begin/EndGetConnection, restrictable using DeliveryFormat
+                bool allowUnicode = IsUnicodeSupported();
+                ValidateUnicodeRequirement(_message!, _recipients!, allowUnicode);
 
-            try
-            {
+                _writer = await _transport.SendMailAsync(
+                    _message!.Sender ?? _message.From!,
+                    _recipients!,
+                    _message.BuildDeliveryStatusNotificationString(),
+                    allowUnicode).ConfigureAwait(false);
+
                 if (_cancelled)
                 {
-                    Complete(null, result.AsyncState!);
+                    Complete(null, state);
+                    return;
                 }
-                else
-                {
-                    _message!.BeginSend(_writer,
-                        IsUnicodeSupported(), new AsyncCallback(SendMessageCallback), result.AsyncState!);
-                }
+
+                await _message!.SendAsync(_writer, IsUnicodeSupported()).ConfigureAwait(false);
+                Complete(null, state);
             }
             catch (Exception e)
             {
-                Complete(e, result.AsyncState!);
+                Complete(e, state);
             }
         }
 
@@ -957,16 +949,6 @@ namespace System.Net.Mail
             {
                 Complete(e, result.AsyncState!);
             }
-        }
-
-        private void SendMailAsync(object state)
-        {
-            // Detected during Begin/EndGetConnection, restrictable using DeliveryFormat
-            bool allowUnicode = IsUnicodeSupported();
-            ValidateUnicodeRequirement(_message!, _recipients!, allowUnicode);
-            _transport.BeginSendMail(_message!.Sender ?? _message.From!, _recipients!,
-                _message.BuildDeliveryStatusNotificationString(), allowUnicode,
-                new AsyncCallback(SendMailCallback), state);
         }
 
         // After we've estabilished a connection and initialized ServerSupportsEai,

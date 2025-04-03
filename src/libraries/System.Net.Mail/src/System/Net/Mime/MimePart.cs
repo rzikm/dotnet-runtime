@@ -8,6 +8,7 @@ using System.IO;
 using System.Net.Mail;
 using System.Runtime.ExceptionServices;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace System.Net.Mime
 {
@@ -303,23 +304,6 @@ namespace System.Net.Mime
             internal bool _completedSynchronously = true;
         }
 
-        internal override IAsyncResult BeginSend(BaseWriter writer, AsyncCallback? callback, bool allowUnicode, object? state)
-        {
-            PrepareHeaders(allowUnicode);
-            writer.WriteHeaders(Headers, allowUnicode);
-            MimePartAsyncResult result = new MimePartAsyncResult(this, state, callback);
-            MimePartContext context = new MimePartContext(writer, result);
-
-            ResetStream();
-            _streamUsedOnce = true;
-            IAsyncResult contentResult = writer.BeginGetContentStream(new AsyncCallback(ContentStreamCallback), context);
-            if (contentResult.CompletedSynchronously)
-            {
-                ContentStreamCallbackHandler(contentResult);
-            }
-            return result;
-        }
-
         internal override void Send(BaseWriter writer, bool allowUnicode)
         {
             if (Stream != null)
@@ -340,6 +324,31 @@ namespace System.Net.Mime
                 while ((read = Stream.Read(buffer, 0, maxBufferSize)) > 0)
                 {
                     outputStream.Write(buffer, 0, read);
+                }
+                outputStream.Close();
+            }
+        }
+
+        internal override async Task SendAsync(BaseWriter writer, bool allowUnicode)
+        {
+            if (Stream != null)
+            {
+                byte[] buffer = new byte[maxBufferSize];
+
+                PrepareHeaders(allowUnicode);
+                writer.WriteHeaders(Headers, allowUnicode);
+
+                Stream outputStream = writer.GetContentStream();
+                outputStream = GetEncodedStream(outputStream);
+
+                int read;
+
+                ResetStream();
+                _streamUsedOnce = true;
+
+                while ((read = await Stream.ReadAsync(buffer.AsMemory(0, maxBufferSize)).ConfigureAwait(false)) > 0)
+                {
+                    await outputStream.WriteAsync(buffer.AsMemory(0, read)).ConfigureAwait(false);
                 }
                 outputStream.Close();
             }
