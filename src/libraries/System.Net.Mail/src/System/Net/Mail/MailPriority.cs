@@ -258,39 +258,6 @@ namespace System.Net.Mail
             }
         }
 
-        internal void EmptySendCallback(IAsyncResult result)
-        {
-            Exception? e = null;
-
-            if (result.CompletedSynchronously)
-            {
-                return;
-            }
-
-            EmptySendContext context = (EmptySendContext)result.AsyncState!;
-            try
-            {
-                BaseWriter.EndGetContentStream(result).Close();
-            }
-            catch (Exception ex)
-            {
-                e = ex;
-            }
-            context._result.InvokeCallback(e);
-        }
-
-        internal sealed class EmptySendContext
-        {
-            internal EmptySendContext(BaseWriter writer, LazyAsyncResult result)
-            {
-                _writer = writer;
-                _result = result;
-            }
-
-            internal LazyAsyncResult _result;
-            internal BaseWriter _writer;
-        }
-
         internal void Send(BaseWriter writer, bool sendEnvelope, bool allowUnicode)
         {
             if (sendEnvelope)
@@ -310,16 +277,6 @@ namespace System.Net.Mail
             {
                 writer.GetContentStream().Close();
             }
-        }
-
-        internal IAsyncResult BeginSend(BaseWriter writer, bool allowUnicode, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(writer, allowUnicode), callback, state);
-        }
-
-        internal void EndSend(IAsyncResult asyncResult)
-        {
-            TaskToAsyncResult.End(asyncResult);
         }
 
         internal void PrepareEnvelopeHeaders(bool allowUnicode)

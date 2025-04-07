@@ -442,20 +442,6 @@ namespace System.Net.Mail
             return _message.SendAsync(writer, allowUnicode);
         }
 
-        internal IAsyncResult BeginSend(BaseWriter writer, bool allowUnicode,
-            AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(
-                SendAsync(writer, allowUnicode),
-                callback,
-                state);
-        }
-
-        internal void EndSend(IAsyncResult asyncResult)
-        {
-            TaskToAsyncResult.End(asyncResult);
-        }
-
         internal string BuildDeliveryStatusNotificationString()
         {
             if (_deliveryStatusNotification != DeliveryNotificationOptions.None)

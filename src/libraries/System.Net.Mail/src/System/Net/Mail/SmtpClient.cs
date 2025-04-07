@@ -58,8 +58,6 @@ namespace System.Net.Mail
         internal string _clientDomain;
         private bool _disposed;
         private ServicePoint? _servicePoint;
-        // (async only) For when only some recipients fail.  We still send the e-mail to the others.
-        private SmtpFailedRecipientException? _failedRecipientException;
         // ports above this limit are invalid
         private const int MaxPortValue = 65535;
         public event SendCompletedEventHandler? SendCompleted;
@@ -908,22 +906,7 @@ namespace System.Net.Mail
             AsyncOperation asyncOp = client._asyncOp!;
             AsyncCompletedEventArgs eventArgs = new AsyncCompletedEventArgs(exception, client._cancelled, asyncOp.UserSuppliedState);
             client.InCall = false;
-            client._failedRecipientException = null; // Reset before the next send.
             asyncOp.PostOperationCompleted(client._onSendCompletedDelegate, eventArgs);
-        }
-
-        private void SendMessageCallback(IAsyncResult result)
-        {
-            try
-            {
-                _message!.EndSend(result);
-                // If some recipients failed but not others, throw AFTER sending the message.
-                Complete(_failedRecipientException, result.AsyncState!);
-            }
-            catch (Exception e)
-            {
-                Complete(e, result.AsyncState!);
-            }
         }
 
         private async void SendMailAsync(object state)
@@ -952,26 +935,6 @@ namespace System.Net.Mail
             catch (Exception e)
             {
                 Complete(e, state);
-            }
-        }
-
-        private void ConnectCallback(IAsyncResult result)
-        {
-            try
-            {
-                SmtpTransport.EndGetConnection(result);
-                if (_cancelled)
-                {
-                    Complete(null, result.AsyncState!);
-                }
-                else
-                {
-                    SendMailAsync(result.AsyncState!);
-                }
-            }
-            catch (Exception e)
-            {
-                Complete(e, result.AsyncState!);
             }
         }
 

@@ -22,29 +22,9 @@ namespace System.Net.Mail
             _reader = reader;
         }
 
-        internal IAsyncResult BeginReadLines(AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(ReadLinesAsync(), callback, state);
-        }
-
-        internal IAsyncResult BeginReadLine(AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(ReadLineAsync(), callback, state);
-        }
-
         public void Close()
         {
             _reader.Close(this);
-        }
-
-        internal static LineInfo[] EndReadLines(IAsyncResult result)
-        {
-            return TaskToAsyncResult.End<LineInfo[]>(result);
-        }
-
-        internal static LineInfo EndReadLine(IAsyncResult result)
-        {
-            return TaskToAsyncResult.End<LineInfo>(result);
         }
 
         internal LineInfo[] ReadLines()

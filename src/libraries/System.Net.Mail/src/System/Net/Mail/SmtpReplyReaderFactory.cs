@@ -55,16 +55,6 @@ namespace System.Net.Mail
             }
         }
 
-        internal IAsyncResult BeginReadLines(SmtpReplyReader caller, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(ReadLinesAsync(caller), callback, state);
-        }
-
-        internal IAsyncResult BeginReadLine(SmtpReplyReader caller, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(ReadLineAsync(caller), callback, state);
-        }
-
         internal void Close(SmtpReplyReader caller)
         {
             if (_currentReader == caller)
@@ -78,16 +68,6 @@ namespace System.Net.Mail
 
                 _currentReader = null;
             }
-        }
-
-        internal static LineInfo[] EndReadLines(IAsyncResult result)
-        {
-            return TaskToAsyncResult.End<LineInfo[]>(result);
-        }
-
-        internal static LineInfo EndReadLine(IAsyncResult result)
-        {
-            return TaskToAsyncResult.End<LineInfo>(result);
         }
 
         internal SmtpReplyReader GetNextReplyReader()

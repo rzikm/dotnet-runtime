@@ -187,28 +187,8 @@ namespace System.Net.Mime
             }
         }
 
-        internal virtual void Send(BaseWriter writer, bool allowUnicode)
-        {
-            throw new NotImplementedException();
-        }
+        internal abstract void Send(BaseWriter writer, bool allowUnicode);
 
         internal abstract Task SendAsync(BaseWriter writer, bool allowUnicode);
-
-        internal IAsyncResult BeginSend(BaseWriter writer, AsyncCallback? callback, bool allowUnicode, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(writer, allowUnicode), callback, state);
-        }
-
-        internal void EndSend(IAsyncResult asyncResult)
-        {
-            TaskToAsyncResult.End(asyncResult);
-        }
-
-        internal sealed class MimePartAsyncResult : LazyAsyncResult
-        {
-            internal MimePartAsyncResult(MimeBasePart part, object? state, AsyncCallback? callback) : base(part, state, callback)
-            {
-            }
-        }
     }
 }

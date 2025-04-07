@@ -31,18 +31,6 @@ namespace System.Net.Mail
             using SmtpReplyReader reader = conn.Reader!.GetNextReplyReader();
             return await reader.ReadLineAsync().ConfigureAwait(false);
         }
-
-        internal static IAsyncResult BeginSend(SmtpConnection conn, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn), callback, state);
-        }
-
-        internal static object EndSend(IAsyncResult result, out string response)
-        {
-            LineInfo info = TaskToAsyncResult.End<LineInfo>(result);
-            response = info.Line;
-            return info.StatusCode;
-        }
     }
 
     internal static class ReadLinesCommand
@@ -51,16 +39,6 @@ namespace System.Net.Mail
         {
             await conn.FlushAsync(cancellationToken).ConfigureAwait(false);
             return await conn.Reader!.GetNextReplyReader().ReadLinesAsync().ConfigureAwait(false);
-        }
-
-        internal static IAsyncResult BeginSend(SmtpConnection conn, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn), callback, state);
-        }
-
-        internal static LineInfo[] EndSend(IAsyncResult result)
-        {
-            return TaskToAsyncResult.End<LineInfo[]>(result);
         }
 
         internal static LineInfo[] Send(SmtpConnection conn)
@@ -84,21 +62,6 @@ namespace System.Net.Mail
             PrepareCommand(conn, message);
             LineInfo[] lines = await ReadLinesCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             return CheckResponse(lines);
-        }
-
-        internal static IAsyncResult BeginSend(SmtpConnection conn, string type, string message, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn, type, message), callback, state);
-        }
-
-        internal static IAsyncResult BeginSend(SmtpConnection conn, string? message, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn, message), callback, state);
-        }
-
-        internal static LineInfo EndSend(IAsyncResult result)
-        {
-            return TaskToAsyncResult.End<LineInfo>(result);
         }
 
         private static LineInfo CheckResponse(LineInfo[] lines)
@@ -146,16 +109,6 @@ namespace System.Net.Mail
             PrepareCommand(conn);
             LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
-        }
-
-        internal static IAsyncResult BeginSend(SmtpConnection conn, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn), callback, state);
-        }
-
-        internal static void EndSend(IAsyncResult result)
-        {
-            TaskToAsyncResult.End(result);
         }
 
         private static void CheckResponse(SmtpStatusCode statusCode, string serverResponse)
@@ -252,16 +205,6 @@ namespace System.Net.Mail
             return CheckResponse(lines);
         }
 
-        internal static IAsyncResult BeginSend(SmtpConnection conn, string domain, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn, domain), callback, state);
-        }
-
-        internal static string[] EndSend(IAsyncResult result)
-        {
-            return TaskToAsyncResult.End<string[]>(result);
-        }
-
         private static string[] CheckResponse(LineInfo[] lines)
         {
             if (lines == null || lines.Length == 0)
@@ -311,16 +254,6 @@ namespace System.Net.Mail
             PrepareCommand(conn, domain);
             LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
-        }
-
-        internal static IAsyncResult BeginSend(SmtpConnection conn, string domain, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn, domain), callback, state);
-        }
-
-        internal static void EndSend(IAsyncResult result)
-        {
-            TaskToAsyncResult.End(result);
         }
 
         private static void CheckResponse(SmtpStatusCode statusCode, string serverResponse)
@@ -373,16 +306,6 @@ namespace System.Net.Mail
             CheckResponse(info.StatusCode, info.Line);
         }
 
-        internal static IAsyncResult BeginSend(SmtpConnection conn, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn), callback, state);
-        }
-
-        internal static void EndSend(IAsyncResult result)
-        {
-            TaskToAsyncResult.End(result);
-        }
-
         private static void CheckResponse(SmtpStatusCode statusCode, string response)
         {
             switch (statusCode)
@@ -432,16 +355,6 @@ namespace System.Net.Mail
             PrepareCommand(conn, command, from, allowUnicode);
             LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
-        }
-
-        internal static IAsyncResult BeginSend(SmtpConnection conn, ReadOnlyMemory<byte> command, MailAddress from, bool allowUnicode, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn, command, from, allowUnicode), callback, state);
-        }
-
-        internal static void EndSend(IAsyncResult result)
-        {
-            TaskToAsyncResult.End(result);
         }
 
         private static void CheckResponse(SmtpStatusCode statusCode, string response)
@@ -499,18 +412,6 @@ namespace System.Net.Mail
             PrepareCommand(conn, to);
             LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
             return (CheckResponse(info.StatusCode, info.Line), info.Line);
-        }
-
-        internal static IAsyncResult BeginSend(SmtpConnection conn, string to, AsyncCallback? callback, object? state)
-        {
-            return TaskToAsyncResult.Begin(SendAsync(conn, to), callback, state);
-        }
-
-        internal static bool EndSend(IAsyncResult result, out string response)
-        {
-            LineInfo info = TaskToAsyncResult.End<LineInfo>(result);
-            response = info.Line;
-            return CheckResponse(info.StatusCode, response);
         }
 
         private static bool CheckResponse(SmtpStatusCode statusCode, string response)
