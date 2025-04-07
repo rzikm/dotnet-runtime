@@ -3,6 +3,7 @@
 
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace System.Net.Mail
@@ -45,6 +46,16 @@ namespace System.Net.Mail
         internal Task<LineInfo> ReadLineAsync()
         {
             return _reader.ReadLineAsync(this);
+        }
+
+        internal Task<LineInfo[]> ReadLinesAsync<TIOAdapter>(CancellationToken cancellationToken) where TIOAdapter : IReadWriteAdapter
+        {
+            return _reader.ReadLinesAsync<TIOAdapter>(this, false, cancellationToken);
+        }
+
+        internal Task<LineInfo> ReadLineAsync<TIOAdapter>(CancellationToken cancellationToken) where TIOAdapter : IReadWriteAdapter
+        {
+            return _reader.ReadLineAsync<TIOAdapter>(this, cancellationToken);
         }
     }
 }

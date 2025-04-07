@@ -92,32 +92,16 @@ namespace System.Net.Mail
 
         internal void GetConnection(string host, int port)
         {
-            try
-            {
-                lock (this)
-                {
-                    _connection = new SmtpConnection(this, _client, _credentials, _authenticationModules);
-                    if (_shouldAbort)
-                    {
-                        _connection.Abort();
-                    }
-                    _shouldAbort = false;
-                }
-
-                if (NetEventSource.Log.IsEnabled()) NetEventSource.Associate(this, _connection);
-
-                if (EnableSsl)
-                {
-                    _connection.EnableSsl = true;
-                    _connection.ClientCertificates = ClientCertificates;
-                }
-
-                _connection.GetConnection(host, port);
-            }
-            finally { }
+            GetConnectionAsync<SyncReadWriteAdapter>(null, host, port).GetAwaiter().GetResult();
         }
 
         internal async Task GetConnectionAsync(ContextAwareResult? outerResult, string host, int port, CancellationToken cancellationToken = default)
+        {
+            await GetConnectionAsync<AsyncReadWriteAdapter>(outerResult, host, port, cancellationToken).ConfigureAwait(false);
+        }
+
+        internal async Task GetConnectionAsync<TIOAdapter>(ContextAwareResult? outerResult, string host, int port, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             try
             {
@@ -139,7 +123,7 @@ namespace System.Net.Mail
                     _connection.ClientCertificates = ClientCertificates;
                 }
 
-                await _connection.GetConnectionAsync(host, port, cancellationToken).ConfigureAwait(false);
+                await _connection.GetConnectionAsync<TIOAdapter>(host, port, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception innerException)
             {
@@ -149,17 +133,51 @@ namespace System.Net.Mail
 
         internal async Task<MailWriter> SendMailAsync(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode)
         {
+            return await SendMailAsync<AsyncReadWriteAdapter>(sender, recipients, deliveryNotify, allowUnicode).ConfigureAwait(false);
+        }
+
+        internal MailWriter SendMail(MailAddress sender, MailAddressCollection recipients, string deliveryNotify,
+            bool allowUnicode, out SmtpFailedRecipientException? exception)
+        {
+            var result = SendMailAsync<SyncReadWriteAdapter>(sender, recipients, deliveryNotify, allowUnicode).GetAwaiter().GetResult();
+            exception = null;
+
+            // Handle exceptions that might have been collected during sending
+            if (_failedRecipientExceptions.Count > 0)
+            {
+                if (_failedRecipientExceptions.Count == 1)
+                {
+                    exception = _failedRecipientExceptions[0];
+                }
+                else
+                {
+                    exception = new SmtpFailedRecipientsException(_failedRecipientExceptions, _failedRecipientExceptions.Count == recipients.Count);
+                }
+
+                if (_failedRecipientExceptions.Count == recipients.Count)
+                {
+                    exception.fatal = true;
+                    throw exception;
+                }
+            }
+
+            return result;
+        }
+
+        internal async Task<MailWriter> SendMailAsync<TIOAdapter>(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode)
+            where TIOAdapter : IReadWriteAdapter
+        {
             ArgumentNullException.ThrowIfNull(sender);
             ArgumentNullException.ThrowIfNull(recipients);
 
-            MailCommand.Send(_connection!, SmtpCommands.Mail, sender, allowUnicode);
+            await MailCommand.SendAsync<TIOAdapter>(_connection!, SmtpCommands.Mail, sender, allowUnicode, default).ConfigureAwait(false);
             _failedRecipientExceptions.Clear();
 
             foreach (MailAddress address in recipients)
             {
                 string smtpAddress = address.GetSmtpAddress(allowUnicode);
                 string to = smtpAddress + (_connection!.DSNEnabled ? deliveryNotify : string.Empty);
-                (bool success, string? response) = await RecipientCommand.SendAsync(_connection, to).ConfigureAwait(false);
+                (bool success, string? response) = await RecipientCommand.SendAsync<TIOAdapter>(_connection, to, default).ConfigureAwait(false);
                 if (!success)
                 {
                     _failedRecipientExceptions.Add(
@@ -167,19 +185,16 @@ namespace System.Net.Mail
                 }
             }
 
-            if (_failedRecipientExceptions.Count > 0)
+            if (_failedRecipientExceptions.Count > 0 && _failedRecipientExceptions.Count == recipients.Count)
             {
-                if (_failedRecipientExceptions.Count == 1)
-                {
-                    throw _failedRecipientExceptions[0];
-                }
-                else
-                {
-                    throw new SmtpFailedRecipientsException(_failedRecipientExceptions, _failedRecipientExceptions.Count == recipients.Count);
-                }
+                var exception = _failedRecipientExceptions.Count == 1
+                    ? _failedRecipientExceptions[0]
+                    : new SmtpFailedRecipientsException(_failedRecipientExceptions, true);
+                exception.fatal = true;
+                throw exception;
             }
 
-            await DataCommand.SendAsync(_connection!).ConfigureAwait(false);
+            await DataCommand.SendAsync<TIOAdapter>(_connection!).ConfigureAwait(false);
             return new MailWriter(_connection!.GetClosableStream(), encodeForTransport: true);
         }
 
@@ -201,50 +216,6 @@ namespace System.Net.Mail
                     _shouldAbort = true;
                 }
             }
-        }
-
-        internal MailWriter SendMail(MailAddress sender, MailAddressCollection recipients, string deliveryNotify,
-            bool allowUnicode, out SmtpFailedRecipientException? exception)
-        {
-            ArgumentNullException.ThrowIfNull(sender);
-            ArgumentNullException.ThrowIfNull(recipients);
-
-            MailCommand.Send(_connection!, SmtpCommands.Mail, sender, allowUnicode);
-            _failedRecipientExceptions.Clear();
-
-            exception = null;
-            string response;
-            foreach (MailAddress address in recipients)
-            {
-                string smtpAddress = address.GetSmtpAddress(allowUnicode);
-                string to = smtpAddress + (_connection!.DSNEnabled ? deliveryNotify : string.Empty);
-                if (!RecipientCommand.Send(_connection, to, out response))
-                {
-                    _failedRecipientExceptions.Add(
-                        new SmtpFailedRecipientException(_connection.Reader!.StatusCode, smtpAddress, response));
-                }
-            }
-
-            if (_failedRecipientExceptions.Count > 0)
-            {
-                if (_failedRecipientExceptions.Count == 1)
-                {
-                    exception = _failedRecipientExceptions[0];
-                }
-                else
-                {
-                    exception = new SmtpFailedRecipientsException(_failedRecipientExceptions, _failedRecipientExceptions.Count == recipients.Count);
-                }
-
-                if (_failedRecipientExceptions.Count == recipients.Count)
-                {
-                    exception.fatal = true;
-                    throw exception;
-                }
-            }
-
-            DataCommand.Send(_connection!);
-            return new MailWriter(_connection!.GetClosableStream(), encodeForTransport: true);
         }
     }
 }

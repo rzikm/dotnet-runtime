@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -272,76 +273,18 @@ namespace System.Net.Mail
 
         internal LineInfo[] ReadLines(SmtpReplyReader caller, bool oneLine)
         {
-            if (caller != _currentReader || _readState == ReadState.Done)
-            {
-                return Array.Empty<LineInfo>();
-            }
+            Task<LineInfo[]> task = ReadLinesAsync<SyncReadWriteAdapter>(caller, oneLine);
+            Debug.Assert(task.IsCompleted, "ReadLinesAsync should complete synchronously for SyncReadWriteAdapter");
 
-            _byteBuffer ??= new byte[SmtpReplyReaderFactory.DefaultBufferSize];
-
-            System.Diagnostics.Debug.Assert(_readState == ReadState.Status0);
-
-            var builder = new StringBuilder();
-            var lines = new List<LineInfo>();
-            int statusRead = 0;
-
-            for (int start = 0, read = 0; ;)
-            {
-                if (start == read)
-                {
-                    read = _bufferedStream.Read(_byteBuffer);
-                    start = 0;
-                }
-
-                int actual = ProcessRead(_byteBuffer.AsSpan(start, read), true);
-
-                if (statusRead < 4)
-                {
-                    int left = Math.Min(4 - statusRead, actual);
-                    statusRead += left;
-                    start += left;
-                    actual -= left;
-                    if (actual == 0)
-                    {
-                        continue;
-                    }
-                }
-
-                builder.Append(Encoding.UTF8.GetString(_byteBuffer, start, actual));
-                start += actual;
-
-                if (_readState == ReadState.Status0)
-                {
-                    statusRead = 0;
-                    lines.Add(new LineInfo(_statusCode, builder.ToString(0, builder.Length - 2))); // return everything except CRLF
-
-                    if (oneLine)
-                    {
-                        _bufferedStream.Push(_byteBuffer.AsSpan(start, read - start));
-                        return lines.ToArray();
-                    }
-                    builder = new StringBuilder();
-                }
-                else if (_readState == ReadState.Done)
-                {
-                    lines.Add(new LineInfo(_statusCode, builder.ToString(0, builder.Length - 2))); // return everything except CRLF
-                    _bufferedStream.Push(_byteBuffer.AsSpan(start, read - start));
-                    return lines.ToArray();
-                }
-            }
+            return task.GetAwaiter().GetResult();
         }
 
-        internal async Task<LineInfo> ReadLineAsync(SmtpReplyReader caller, CancellationToken cancellationToken = default)
+        internal Task<LineInfo[]> ReadLinesAsync(SmtpReplyReader caller, bool oneLine = false, CancellationToken cancellationToken = default)
         {
-            LineInfo[] info = await ReadLinesAsync(caller, true, cancellationToken).ConfigureAwait(false);
-            if (info != null && info.Length > 0)
-            {
-                return info[0];
-            }
-            return default;
+            return ReadLinesAsync<AsyncReadWriteAdapter>(caller, oneLine, cancellationToken);
         }
 
-        internal async Task<LineInfo[]> ReadLinesAsync(SmtpReplyReader caller, bool oneLine = false, CancellationToken cancellationToken = default)
+        internal async Task<LineInfo[]> ReadLinesAsync<TIOAdapter>(SmtpReplyReader caller, bool oneLine = false, CancellationToken cancellationToken = default) where TIOAdapter : IReadWriteAdapter
         {
             if (caller != _currentReader || _readState == ReadState.Done)
             {
@@ -357,7 +300,7 @@ namespace System.Net.Mail
 
             while (true)
             {
-                int read = await _bufferedStream.ReadAsync(_byteBuffer.AsMemory(0, _byteBuffer.Length), cancellationToken).ConfigureAwait(false);
+                int read = await TIOAdapter.ReadAsync(_bufferedStream, _byteBuffer.AsMemory(0, _byteBuffer.Length), cancellationToken).ConfigureAwait(false);
                 if (read == 0)
                 {
                     throw new IOException(SR.Format(SR.net_io_readfailure, SR.net_io_connectionclosed));
@@ -402,6 +345,18 @@ namespace System.Net.Mail
                 }
                 return lines.ToArray();
             }
+        }
+
+        internal async Task<LineInfo> ReadLineAsync(SmtpReplyReader caller)
+        {
+            LineInfo[] lines = await ReadLinesAsync(caller, oneLine: true).ConfigureAwait(false);
+            return lines.Length > 0 ? lines[0] : default;
+        }
+
+        internal async Task<LineInfo> ReadLineAsync<TIOAdapter>(SmtpReplyReader caller, CancellationToken cancellationToken) where TIOAdapter : IReadWriteAdapter
+        {
+            LineInfo[] lines = await ReadLinesAsync<TIOAdapter>(caller, oneLine: true, cancellationToken).ConfigureAwait(false);
+            return lines.Length > 0 ? lines[0] : default;
         }
     }
 }

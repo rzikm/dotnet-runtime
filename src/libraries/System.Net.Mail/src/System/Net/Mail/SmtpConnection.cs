@@ -92,15 +92,26 @@ namespace System.Net.Mail
             _stream = _tcpClient.GetStream();
         }
 
-        internal async Task GetConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
+        internal async Task GetConnectionAsync<TIOAdapter>(string host, int port, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             if (_isConnected)
             {
                 throw new InvalidOperationException(SR.SmtpAlreadyConnected);
             }
 
+            bool isAsync = typeof(TIOAdapter) == typeof(AsyncReadWriteAdapter);
+
             // Initialize the connection
-            await InitializeConnectionAsync(host, port).ConfigureAwait(false);
+            if (isAsync)
+            {
+                await InitializeConnectionAsync(host, port).ConfigureAwait(false);
+            }
+            else
+            {
+                InitializeConnection(host, port);
+            }
+
             _responseReader = new SmtpReplyReaderFactory(_stream!);
 
             // Read the initial greeting
@@ -117,7 +128,7 @@ namespace System.Net.Mail
             // Try EHLO first
             try
             {
-                _extensions = await EHelloCommand.SendAsync(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
+                _extensions = await EHelloCommand.SendAsync<TIOAdapter>(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
                 ParseExtensions(_extensions);
             }
             catch (SmtpException e)
@@ -129,7 +140,7 @@ namespace System.Net.Mail
                 }
 
                 // Fall back to HELO if EHLO fails
-                await HelloCommand.SendAsync(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
+                await HelloCommand.SendAsync<TIOAdapter>(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
                 // If ehello isn't supported, assume basic login
                 _supportedAuth = SupportedAuth.Login;
             }
@@ -146,15 +157,29 @@ namespace System.Net.Mail
                     }
                 }
 
-                await StartTlsCommand.SendAsync(this, cancellationToken).ConfigureAwait(false);
+                await StartTlsCommand.SendAsync<TIOAdapter>(this, cancellationToken).ConfigureAwait(false);
+
 #pragma warning disable SYSLIB0014 // ServicePointManager is obsolete
                 SslStream sslStream = new SslStream(_stream!, false, ServicePointManager.ServerCertificateValidationCallback);
-
-                await sslStream.AuthenticateAsClientAsync(
-                    host,
-                    _clientCertificates,
-                    (SslProtocols)ServicePointManager.SecurityProtocol, // enums use same values
-                    ServicePointManager.CheckCertificateRevocationList).ConfigureAwait(false);
+                if (isAsync)
+                {
+                    // If we are using async, we need to use the async version of AuthenticateAsClientAsync
+                    await sslStream.AuthenticateAsClientAsync(
+                        new SslClientAuthenticationOptions
+                        {
+                            TargetHost = host,
+                            ClientCertificates = _clientCertificates,
+                            EnabledSslProtocols = (SslProtocols)ServicePointManager.SecurityProtocol, // enums use same values
+                            CertificateRevocationCheckMode = ServicePointManager.CheckCertificateRevocationList ?
+                                X509RevocationMode.Online : X509RevocationMode.NoCheck,
+                        },
+                        cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Synchronous version
+                    sslStream.AuthenticateAsClient(host, _clientCertificates, (SslProtocols)ServicePointManager.SecurityProtocol, ServicePointManager.CheckCertificateRevocationList);
+                }
 #pragma warning restore SYSLIB0014 // ServicePointManager is obsolete
 
                 _stream = sslStream;
@@ -162,7 +187,7 @@ namespace System.Net.Mail
 
                 // According to RFC 3207: The client SHOULD send an EHLO command
                 // as the first command after a successful TLS negotiation.
-                _extensions = await EHelloCommand.SendAsync(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
+                _extensions = await EHelloCommand.SendAsync<TIOAdapter>(this, _client!._clientDomain, cancellationToken).ConfigureAwait(false);
                 ParseExtensions(_extensions);
             }
 
@@ -185,7 +210,7 @@ namespace System.Net.Mail
 
                     if (auth != null && auth.Message != null)
                     {
-                        info = await AuthCommand.SendAsync(this, _authenticationModules[i].AuthenticationType, auth.Message, cancellationToken).ConfigureAwait(false);
+                        info = await AuthCommand.SendAsync<TIOAdapter>(this, _authenticationModules[i].AuthenticationType, auth.Message, cancellationToken).ConfigureAwait(false);
 
                         if (info.StatusCode == SmtpStatusCode.CommandParameterNotImplemented)
                         {
@@ -199,7 +224,7 @@ namespace System.Net.Mail
                             {
                                 throw new SmtpException(SR.SmtpAuthenticationFailed);
                             }
-                            info = await AuthCommand.SendAsync(this, auth.Message, cancellationToken).ConfigureAwait(false);
+                            info = await AuthCommand.SendAsync<TIOAdapter>(this, auth.Message, cancellationToken).ConfigureAwait(false);
 
                             if ((int)info.StatusCode == 235)
                             {
@@ -218,6 +243,12 @@ namespace System.Net.Mail
         internal async Task FlushAsync(CancellationToken cancellationToken = default)
         {
             await _stream!.WriteAsync(_bufferBuilder.GetBuffer().AsMemory(0, _bufferBuilder.Length), cancellationToken).ConfigureAwait(false);
+            _bufferBuilder.Reset();
+        }
+
+        internal async Task FlushAsync<TIOAdapter>(CancellationToken cancellationToken = default) where TIOAdapter : IReadWriteAdapter
+        {
+            await TIOAdapter.WriteAsync(_stream!, _bufferBuilder.GetBuffer().AsMemory(0, _bufferBuilder.Length), cancellationToken).ConfigureAwait(false);
             _bufferBuilder.Reset();
         }
 
@@ -251,7 +282,7 @@ namespace System.Net.Mail
                                 {
                                     // Gracefully close the transmission channel
                                     _tcpClient.Client.Blocking = false;
-                                    QuitCommand.Send(this);
+                                    QuitCommand.SendAsync<SyncReadWriteAdapter>(this).GetAwaiter().GetResult();
                                 }
                             }
                             finally
@@ -287,125 +318,6 @@ namespace System.Net.Mail
         internal void Abort()
         {
             ShutdownConnection(true);
-        }
-
-        internal void GetConnection(string host, int port)
-        {
-            if (_isConnected)
-            {
-                throw new InvalidOperationException(SR.SmtpAlreadyConnected);
-            }
-
-            InitializeConnection(host, port);
-            _responseReader = new SmtpReplyReaderFactory(_stream!);
-
-            LineInfo info = _responseReader.GetNextReplyReader().ReadLine();
-
-            switch (info.StatusCode)
-            {
-                case SmtpStatusCode.ServiceReady:
-                    break;
-                default:
-                    throw new SmtpException(info.StatusCode, info.Line, true);
-            }
-
-            try
-            {
-                _extensions = EHelloCommand.Send(this, _client!._clientDomain);
-                ParseExtensions(_extensions);
-            }
-            catch (SmtpException e)
-            {
-                if ((e.StatusCode != SmtpStatusCode.CommandUnrecognized)
-                    && (e.StatusCode != SmtpStatusCode.CommandNotImplemented))
-                {
-                    throw;
-                }
-
-                HelloCommand.Send(this, _client!._clientDomain);
-                //if ehello isn't supported, assume basic login
-                _supportedAuth = SupportedAuth.Login;
-            }
-
-            if (_enableSsl)
-            {
-                if (!_serverSupportsStartTls)
-                {
-                    // Either TLS is already established or server does not support TLS
-                    if (!(_stream is SslStream))
-                    {
-                        throw new SmtpException(SR.MailServerDoesNotSupportStartTls);
-                    }
-                }
-
-                StartTlsCommand.Send(this);
-#pragma warning disable SYSLIB0014 // ServicePointManager is obsolete
-                SslStream sslStream = new SslStream(_stream!, false, ServicePointManager.ServerCertificateValidationCallback);
-
-                sslStream.AuthenticateAsClient(
-                    host,
-                    _clientCertificates,
-                    (SslProtocols)ServicePointManager.SecurityProtocol, // enums use same values
-                    ServicePointManager.CheckCertificateRevocationList);
-#pragma warning restore SYSLIB0014 // ServicePointManager is obsolete
-
-                _stream = sslStream;
-                _responseReader = new SmtpReplyReaderFactory(_stream);
-
-                // According to RFC 3207: The client SHOULD send an EHLO command
-                // as the first command after a successful TLS negotiation.
-                _extensions = EHelloCommand.Send(this, _client._clientDomain);
-                ParseExtensions(_extensions);
-            }
-
-            // if no credentials were supplied, try anonymous
-            // servers don't appear to anounce that they support anonymous login.
-            if (_credentials != null)
-            {
-                for (int i = 0; i < _authenticationModules.Length; i++)
-                {
-                    //only authenticate if the auth protocol is supported  - chadmu
-                    if (!AuthSupported(_authenticationModules[i]))
-                    {
-                        continue;
-                    }
-
-                    NetworkCredential? credential = _credentials.GetCredential(host, port, _authenticationModules[i].AuthenticationType);
-                    if (credential == null)
-                        continue;
-
-                    Authorization? auth = SetContextAndTryAuthenticate(_authenticationModules[i], credential, null);
-
-                    if (auth != null && auth.Message != null)
-                    {
-                        info = AuthCommand.Send(this, _authenticationModules[i].AuthenticationType, auth.Message);
-
-                        if (info.StatusCode == SmtpStatusCode.CommandParameterNotImplemented)
-                        {
-                            continue;
-                        }
-
-                        while ((int)info.StatusCode == 334)
-                        {
-                            auth = _authenticationModules[i].Authenticate(info.Line, null, this, _client.TargetName, null);
-                            if (auth == null)
-                            {
-                                throw new SmtpException(SR.SmtpAuthenticationFailed);
-                            }
-                            info = AuthCommand.Send(this, auth.Message);
-
-                            if ((int)info.StatusCode == 235)
-                            {
-                                _authenticationModules[i].CloseContext(this);
-                                _isConnected = true;
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-
-            _isConnected = true;
         }
 
         private Authorization? SetContextAndTryAuthenticate(ISmtpAuthenticationModule module, NetworkCredential? credential, ContextAwareResult? context)
@@ -481,7 +393,7 @@ namespace System.Net.Mail
         {
             _isStreamOpen = false;
 
-            DataStopCommand.Send(this);
+            DataStopCommand.SendAsync<SyncReadWriteAdapter>(this).GetAwaiter().GetResult();
         }
     }
 }

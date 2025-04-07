@@ -15,52 +15,40 @@ namespace System.Net.Mail
 {
     internal static class CheckCommand
     {
-        internal static SmtpStatusCode Send(SmtpConnection conn, out string response)
+        internal static async Task<LineInfo> SendAsync<TIOAdapter>(SmtpConnection conn, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
-            conn.Flush();
-            SmtpReplyReader reader = conn.Reader!.GetNextReplyReader();
-            LineInfo info = reader.ReadLine();
-            response = info.Line;
-            reader.Close();
-            return info.StatusCode;
-        }
-
-        internal static async Task<LineInfo> SendAsync(SmtpConnection conn, CancellationToken cancellationToken = default)
-        {
-            await conn.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await conn.FlushAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
             using SmtpReplyReader reader = conn.Reader!.GetNextReplyReader();
-            return await reader.ReadLineAsync().ConfigureAwait(false);
+            return await reader.ReadLineAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
         }
     }
 
     internal static class ReadLinesCommand
     {
-        internal static async Task<LineInfo[]> SendAsync(SmtpConnection conn, CancellationToken cancellationToken = default)
+        internal static async Task<LineInfo[]> SendAsync<TIOAdapter>(SmtpConnection conn, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
-            await conn.FlushAsync(cancellationToken).ConfigureAwait(false);
-            return await conn.Reader!.GetNextReplyReader().ReadLinesAsync().ConfigureAwait(false);
-        }
-
-        internal static LineInfo[] Send(SmtpConnection conn)
-        {
-            conn.Flush();
-            return conn.Reader!.GetNextReplyReader().ReadLines();
+            await conn.FlushAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
+            return await conn.Reader!.GetNextReplyReader().ReadLinesAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
         }
     }
 
     internal static class AuthCommand
     {
-        internal static async Task<LineInfo> SendAsync(SmtpConnection conn, string type, string message, CancellationToken cancellationToken = default)
+        internal static async Task<LineInfo> SendAsync<TIOAdapter>(SmtpConnection conn, string type, string message, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             PrepareCommand(conn, type, message);
-            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
+            LineInfo[] lines = await ReadLinesCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
             return CheckResponse(lines);
         }
 
-        internal static async Task<LineInfo> SendAsync(SmtpConnection conn, string? message, CancellationToken cancellationToken = default)
+        internal static async Task<LineInfo> SendAsync<TIOAdapter>(SmtpConnection conn, string? message, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             PrepareCommand(conn, message);
-            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
+            LineInfo[] lines = await ReadLinesCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
             return CheckResponse(lines);
         }
 
@@ -88,26 +76,15 @@ namespace System.Net.Mail
             conn.BufferBuilder.Append(message);
             conn.BufferBuilder.Append(SmtpCommands.CRLF);
         }
-
-        internal static LineInfo Send(SmtpConnection conn, string type, string message)
-        {
-            PrepareCommand(conn, type, message);
-            return CheckResponse(ReadLinesCommand.Send(conn));
-        }
-
-        internal static LineInfo Send(SmtpConnection conn, string? message)
-        {
-            PrepareCommand(conn, message);
-            return CheckResponse(ReadLinesCommand.Send(conn));
-        }
     }
 
     internal static class DataCommand
     {
-        internal static async Task SendAsync(SmtpConnection conn, CancellationToken cancellationToken = default)
+        internal static async Task SendAsync<TIOAdapter>(SmtpConnection conn, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             PrepareCommand(conn);
-            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
         }
 
@@ -142,18 +119,18 @@ namespace System.Net.Mail
 
             conn.BufferBuilder.Append(SmtpCommands.Data);
         }
-
-        internal static void Send(SmtpConnection conn)
-        {
-            PrepareCommand(conn);
-            string response;
-            SmtpStatusCode statusCode = CheckCommand.Send(conn, out response);
-            CheckResponse(statusCode, response);
-        }
     }
 
     internal static class DataStopCommand
     {
+        internal static async Task SendAsync<TIOAdapter>(SmtpConnection conn, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
+        {
+            PrepareCommand(conn);
+            LineInfo info = await CheckCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
+            CheckResponse(info.StatusCode, info.Line);
+        }
+
         private static void CheckResponse(SmtpStatusCode statusCode, string serverResponse)
         {
             switch (statusCode)
@@ -187,21 +164,15 @@ namespace System.Net.Mail
 
             conn.BufferBuilder.Append(SmtpCommands.DataStop);
         }
-        internal static void Send(SmtpConnection conn)
-        {
-            PrepareCommand(conn);
-            string response;
-            SmtpStatusCode statusCode = CheckCommand.Send(conn, out response);
-            CheckResponse(statusCode, response);
-        }
     }
 
     internal static class EHelloCommand
     {
-        internal static async Task<string[]> SendAsync(SmtpConnection conn, string domain, CancellationToken cancellationToken = default)
+        internal static async Task<string[]> SendAsync<TIOAdapter>(SmtpConnection conn, string domain, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             PrepareCommand(conn, domain);
-            LineInfo[] lines = await ReadLinesCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
+            LineInfo[] lines = await ReadLinesCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
             return CheckResponse(lines);
         }
 
@@ -239,20 +210,15 @@ namespace System.Net.Mail
             conn.BufferBuilder.Append(domain);
             conn.BufferBuilder.Append(SmtpCommands.CRLF);
         }
-
-        internal static string[] Send(SmtpConnection conn, string domain)
-        {
-            PrepareCommand(conn, domain);
-            return CheckResponse(ReadLinesCommand.Send(conn));
-        }
     }
 
     internal static class HelloCommand
     {
-        internal static async Task SendAsync(SmtpConnection conn, string domain, CancellationToken cancellationToken = default)
+        internal static async Task SendAsync<TIOAdapter>(SmtpConnection conn, string domain, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             PrepareCommand(conn, domain);
-            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
         }
 
@@ -287,22 +253,15 @@ namespace System.Net.Mail
             conn.BufferBuilder.Append(domain);
             conn.BufferBuilder.Append(SmtpCommands.CRLF);
         }
-
-        internal static void Send(SmtpConnection conn, string domain)
-        {
-            PrepareCommand(conn, domain);
-            string response;
-            SmtpStatusCode statusCode = CheckCommand.Send(conn, out response);
-            CheckResponse(statusCode, response);
-        }
     }
 
     internal static class StartTlsCommand
     {
-        internal static async Task SendAsync(SmtpConnection conn, CancellationToken cancellationToken = default)
+        internal static async Task SendAsync<TIOAdapter>(SmtpConnection conn, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             PrepareCommand(conn);
-            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
         }
 
@@ -338,22 +297,15 @@ namespace System.Net.Mail
             conn.BufferBuilder.Append(SmtpCommands.StartTls);
             conn.BufferBuilder.Append(SmtpCommands.CRLF);
         }
-
-        internal static void Send(SmtpConnection conn)
-        {
-            PrepareCommand(conn);
-            string response;
-            SmtpStatusCode statusCode = CheckCommand.Send(conn, out response);
-            CheckResponse(statusCode, response);
-        }
     }
 
     internal static class MailCommand
     {
-        internal static async Task SendAsync(SmtpConnection conn, ReadOnlyMemory<byte> command, MailAddress from, bool allowUnicode, CancellationToken cancellationToken = default)
+        internal static async Task SendAsync<TIOAdapter>(SmtpConnection conn, ReadOnlyMemory<byte> command, MailAddress from, bool allowUnicode, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             PrepareCommand(conn, command, from, allowUnicode);
-            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
             CheckResponse(info.StatusCode, info.Line);
         }
 
@@ -395,22 +347,15 @@ namespace System.Net.Mail
             }
             conn.BufferBuilder.Append(SmtpCommands.CRLF);
         }
-
-        internal static void Send(SmtpConnection conn, ReadOnlyMemory<byte> command, MailAddress from, bool allowUnicode)
-        {
-            PrepareCommand(conn, command, from, allowUnicode);
-            string response;
-            SmtpStatusCode statusCode = CheckCommand.Send(conn, out response);
-            CheckResponse(statusCode, response);
-        }
     }
 
     internal static class RecipientCommand
     {
-        internal static async Task<(bool success, string response)> SendAsync(SmtpConnection conn, string to, CancellationToken cancellationToken = default)
+        internal static async Task<(bool success, string response)> SendAsync<TIOAdapter>(SmtpConnection conn, string to, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             PrepareCommand(conn, to);
-            LineInfo info = await CheckCommand.SendAsync(conn, cancellationToken).ConfigureAwait(false);
+            LineInfo info = await CheckCommand.SendAsync<TIOAdapter>(conn, cancellationToken).ConfigureAwait(false);
             return (CheckResponse(info.StatusCode, info.Line), info.Line);
         }
 
@@ -455,17 +400,18 @@ namespace System.Net.Mail
             conn.BufferBuilder.Append(to, true); // Unicode validation was done prior
             conn.BufferBuilder.Append(SmtpCommands.CRLF);
         }
-
-        internal static bool Send(SmtpConnection conn, string to, out string response)
-        {
-            PrepareCommand(conn, to);
-            SmtpStatusCode statusCode = CheckCommand.Send(conn, out response);
-            return CheckResponse(statusCode, response);
-        }
     }
 
     internal static class QuitCommand
     {
+        internal static async Task SendAsync<TIOAdapter>(SmtpConnection conn, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
+        {
+            PrepareCommand(conn);
+            await conn.FlushAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
+            // We don't read any response to match the synchronous behavior
+        }
+
         private static void PrepareCommand(SmtpConnection conn)
         {
             if (conn.IsStreamOpen)
@@ -474,17 +420,6 @@ namespace System.Net.Mail
             }
 
             conn.BufferBuilder.Append(SmtpCommands.Quit);
-        }
-
-        internal static void Send(SmtpConnection conn)
-        {
-            PrepareCommand(conn);
-
-            // We simply flush and don't read the response
-            // to avoid blocking call that will impact users
-            // that are using async api, since this code
-            // will run on Dispose()
-            conn.Flush();
         }
     }
 
