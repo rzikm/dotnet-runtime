@@ -4,6 +4,7 @@
 using System.Collections.Specialized;
 using System.Net.Mail;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace System.Net.Mime
@@ -187,8 +188,6 @@ namespace System.Net.Mime
             }
         }
 
-        internal abstract void Send(BaseWriter writer, bool allowUnicode);
-
-        internal abstract Task SendAsync(BaseWriter writer, bool allowUnicode);
+        internal abstract Task SendAsync<TIOAdapter>(BaseWriter writer, bool allowUnicode, CancellationToken cancellationToken) where TIOAdapter : IReadWriteAdapter;
     }
 }

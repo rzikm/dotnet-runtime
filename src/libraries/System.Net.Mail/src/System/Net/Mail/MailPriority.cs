@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net.Mime;
 using System.Runtime.ExceptionServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace System.Net.Mail
@@ -242,23 +243,8 @@ namespace System.Net.Mail
 
         #region Sending
 
-        internal async Task SendAsync(BaseWriter writer, bool allowUnicode)
-        {
-            PrepareHeaders(allowUnicode);
-            writer.WriteHeaders(Headers, allowUnicode);
-
-            if (Content != null)
-            {
-                await Content.SendAsync(writer, allowUnicode).ConfigureAwait(false);
-            }
-            else
-            {
-                using var stream = writer.GetContentStream();
-                // No content to write, just close the stream
-            }
-        }
-
-        internal void Send(BaseWriter writer, bool sendEnvelope, bool allowUnicode)
+        internal async Task SendAsync<TIOAdapter>(BaseWriter writer, bool sendEnvelope, bool allowUnicode, CancellationToken cancellationToken = default)
+            where TIOAdapter : IReadWriteAdapter
         {
             if (sendEnvelope)
             {
@@ -271,11 +257,12 @@ namespace System.Net.Mail
 
             if (Content != null)
             {
-                Content.Send(writer, allowUnicode);
+                await Content.SendAsync<TIOAdapter>(writer, allowUnicode, cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                writer.GetContentStream().Close();
+                using var stream = writer.GetContentStream();
+                // No content to write, just close the stream
             }
         }
 

@@ -495,7 +495,7 @@ namespace System.Net.Mail
                         break;
                 }
                 _message = message;
-                message.Send(writer, DeliveryMethod != SmtpDeliveryMethod.Network, allowUnicode);
+                message.SendAsync<SyncReadWriteAdapter>(writer, DeliveryMethod != SmtpDeliveryMethod.Network, allowUnicode).GetAwaiter().GetResult();
                 writer.Close();
 
                 //throw if we couldn't send to any of the recipients
@@ -617,7 +617,8 @@ namespace System.Net.Mail
                             _writer = GetFileMailWriter(pickupDirectory);
                             bool allowUnicode = IsUnicodeSupported();
                             ValidateUnicodeRequirement(message, _recipients, allowUnicode);
-                            message.Send(_writer, true, allowUnicode);
+                            // TODO: should this be async?
+                            message.SendAsync<SyncReadWriteAdapter>(_writer, true, allowUnicode).GetAwaiter().GetResult();
 
                             _writer?.Close();
 
@@ -647,7 +648,6 @@ namespace System.Net.Mail
                             {
                                 if (NetEventSource.Log.IsEnabled()) NetEventSource.Info(this, $"Calling GetConnectionAsync. Transport: {_transport}");
 
-                                // Use the new async method instead of BeginGetConnection
                                 _ = ConnectAndSendAsync(_operationCompletedResult, Host!, Port);
                             }
 
@@ -929,7 +929,7 @@ namespace System.Net.Mail
                     return;
                 }
 
-                await _message!.SendAsync(_writer, IsUnicodeSupported()).ConfigureAwait(false);
+                await _message!.SendAsync<AsyncReadWriteAdapter>(_writer, false, IsUnicodeSupported(), CancellationToken.None).ConfigureAwait(false);
                 Complete(null, state);
             }
             catch (Exception e)
