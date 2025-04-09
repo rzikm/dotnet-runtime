@@ -20,7 +20,6 @@ namespace System.Net.Mail
         private readonly SmtpClient _client;
         private ICredentialsByHost? _credentials;
         private readonly List<SmtpFailedRecipientException> _failedRecipientExceptions = new List<SmtpFailedRecipientException>();
-        private bool _identityRequired;
         private bool _shouldAbort;
 
         private bool _enableSsl;
@@ -47,19 +46,6 @@ namespace System.Net.Mail
             set
             {
                 _credentials = value;
-            }
-        }
-
-        internal bool IdentityRequired
-        {
-            get
-            {
-                return _identityRequired;
-            }
-
-            set
-            {
-                _identityRequired = value;
             }
         }
 
@@ -164,20 +150,20 @@ namespace System.Net.Mail
             return result;
         }
 
-        internal async Task<MailWriter> SendMailAsync<TIOAdapter>(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode)
+        internal async Task<MailWriter> SendMailAsync<TIOAdapter>(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode, CancellationToken cancellationToken = default)
             where TIOAdapter : IReadWriteAdapter
         {
             ArgumentNullException.ThrowIfNull(sender);
             ArgumentNullException.ThrowIfNull(recipients);
 
-            await MailCommand.SendAsync<TIOAdapter>(_connection!, SmtpCommands.Mail, sender, allowUnicode, default).ConfigureAwait(false);
+            await MailCommand.SendAsync<TIOAdapter>(_connection!, SmtpCommands.Mail, sender, allowUnicode, cancellationToken).ConfigureAwait(false);
             _failedRecipientExceptions.Clear();
 
             foreach (MailAddress address in recipients)
             {
                 string smtpAddress = address.GetSmtpAddress(allowUnicode);
                 string to = smtpAddress + (_connection!.DSNEnabled ? deliveryNotify : string.Empty);
-                (bool success, string? response) = await RecipientCommand.SendAsync<TIOAdapter>(_connection, to, default).ConfigureAwait(false);
+                (bool success, string? response) = await RecipientCommand.SendAsync<TIOAdapter>(_connection, to, cancellationToken).ConfigureAwait(false);
                 if (!success)
                 {
                     _failedRecipientExceptions.Add(
@@ -194,7 +180,7 @@ namespace System.Net.Mail
                 throw exception;
             }
 
-            await DataCommand.SendAsync<TIOAdapter>(_connection!).ConfigureAwait(false);
+            await DataCommand.SendAsync<TIOAdapter>(_connection!, cancellationToken).ConfigureAwait(false);
             return new MailWriter(_connection!.GetClosableStream(), encodeForTransport: true);
         }
 
