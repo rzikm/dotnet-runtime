@@ -561,29 +561,6 @@ namespace System.Net.Mail
             }
         }
 
-        // private async Task ConnectAndSendAsync(ContextAwareResult state, string host, int port)
-        // {
-        //     try
-        //     {
-        //         if (NetEventSource.Log.IsEnabled()) NetEventSource.Info(this, $"Calling GetConnectionAsync. Transport: {_transport}");
-        //         await _transport.GetConnectionAsync(state, host, port).ConfigureAwait(false);
-
-        //         if (_cancelled)
-        //         {
-        //             Complete(null, state);
-        //         }
-        //         else
-        //         {
-        //             SendMailAsync(state);
-        //         }
-        //     }
-        //     catch (Exception e)
-        //     {
-        //         Complete(e, state);
-        //     }
-        // }
-
-
         private static bool IsSystemNetworkCredentialInCache(CredentialCache cache)
         {
             // Check if SystemNetworkCredential is in given cache.
@@ -632,7 +609,15 @@ namespace System.Net.Mail
 
         public Task SendMailAsync(MailMessage message, CancellationToken cancellationToken)
         {
-            return SendAsyncInternal<AsyncReadWriteAdapter>(message, false, null, cancellationToken);
+            Task t = SendAsyncInternal<AsyncReadWriteAdapter>(message, false, null, cancellationToken);
+
+            if (t.IsFaulted)
+            {
+                // If the task completed unwrap the exception (if any)
+                t.GetAwaiter().GetResult();
+            }
+
+            return t;
         }
 
         //*********************************
@@ -670,92 +655,6 @@ namespace System.Net.Mail
                 Abort();
             }
         }
-
-        // private void Complete(Exception? exception, object result)
-        // {
-        //     ContextAwareResult operationCompletedResult = (ContextAwareResult)result;
-        //     try
-        //     {
-        //         if (_cancelled)
-        //         {
-        //             //any exceptions were probably caused by cancellation, clear it.
-        //             exception = null;
-        //             Abort();
-        //         }
-        //         // An individual failed recipient exception is benign, only abort here if ALL the recipients failed.
-        //         else if (exception != null && (!(exception is SmtpFailedRecipientException) || ((SmtpFailedRecipientException)exception).fatal))
-        //         {
-        //             if (NetEventSource.Log.IsEnabled()) NetEventSource.Error(this, exception);
-        //             Abort();
-
-        //             if (!(exception is SmtpException))
-        //             {
-        //                 exception = new SmtpException(SR.SmtpSendMailFailure, exception);
-        //             }
-        //         }
-        //         else
-        //         {
-        //             if (_writer != null)
-        //             {
-        //                 try
-        //                 {
-        //                     _writer.Close();
-        //                 }
-        //                 // Close may result in a DataStopCommand and the server may return error codes at this time.
-        //                 catch (SmtpException se)
-        //                 {
-        //                     exception = se;
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     finally
-        //     {
-        //         operationCompletedResult.InvokeCallback(exception);
-        //     }
-
-        //     if (NetEventSource.Log.IsEnabled()) NetEventSource.Info(this, "Complete");
-        // }
-
-        // private static void ContextSafeCompleteCallback(IAsyncResult ar)
-        // {
-        //     ContextAwareResult result = (ContextAwareResult)ar;
-        //     SmtpClient client = (SmtpClient)ar.AsyncState!;
-        //     Exception? exception = result.Result as Exception;
-        //     AsyncOperation asyncOp = client._asyncOp!;
-        //     AsyncCompletedEventArgs eventArgs = new AsyncCompletedEventArgs(exception, client._cancelled, asyncOp.UserSuppliedState);
-        //     client.InCall = false;
-        //     asyncOp.PostOperationCompleted(client._onSendCompletedDelegate, eventArgs);
-        // }
-
-        // private async void SendMailAsync(object state)
-        // {
-        //     try
-        //     {
-        //         // Detected during Begin/EndGetConnection, restrictable using DeliveryFormat
-        //         bool allowUnicode = IsUnicodeSupported();
-        //         ValidateUnicodeRequirement(_message!, _recipients!, allowUnicode);
-
-        //         _writer = await _transport.SendMailAsync(
-        //             _message!.Sender ?? _message.From!,
-        //             _recipients!,
-        //             _message.BuildDeliveryStatusNotificationString(),
-        //             allowUnicode).ConfigureAwait(false);
-
-        //         if (_cancelled)
-        //         {
-        //             Complete(null, state);
-        //             return;
-        //         }
-
-        //         await _message!.SendAsync<AsyncReadWriteAdapter>(_writer, false, IsUnicodeSupported(), CancellationToken.None).ConfigureAwait(false);
-        //         Complete(null, state);
-        //     }
-        //     catch (Exception e)
-        //     {
-        //         Complete(e, state);
-        //     }
-        // }
 
         // After we've estabilished a connection and initialized ServerSupportsEai,
         // check all the addresses for one that contains unicode in the username/localpart.
