@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
@@ -471,6 +472,7 @@ namespace System.Net.Mail
                     string? pickupDirectory = PickupDirectoryLocation;
 
                     MailWriter writer;
+                    List<SmtpFailedRecipientException>? failedRecipientExceptions = null;
                     switch (DeliveryMethod)
                     {
                         case SmtpDeliveryMethod.PickupDirectoryFromIis:
@@ -493,13 +495,22 @@ namespace System.Net.Mail
                             // Detected during EnsureConnection(), restrictable using the DeliveryFormat parameter
                             allowUnicode = IsUnicodeSupported();
                             ValidateUnicodeRequirement(message, recipients, allowUnicode);
-                            writer = await _transport.SendMailAsync<TIOAdapter>(message.Sender ?? message.From, recipients,
+                            (writer, failedRecipientExceptions) = await _transport.SendMailAsync<TIOAdapter>(message.Sender ?? message.From, recipients,
                                 message.BuildDeliveryStatusNotificationString(), allowUnicode, cancellationToken).ConfigureAwait(false);
                             break;
                     }
                     _message = message;
                     await message.SendAsync<TIOAdapter>(writer, DeliveryMethod != SmtpDeliveryMethod.Network, allowUnicode, cancellationToken).ConfigureAwait(false);
                     writer.Close();
+
+                    //throw if we couldn't send to any of the recipients
+                    if (failedRecipientExceptions != null)
+                    {
+                        var e = failedRecipientExceptions.Count == 1
+                            ? failedRecipientExceptions[0]
+                            : new SmtpFailedRecipientsException(failedRecipientExceptions, false);
+                        throw e;
+                    }
                 }
                 catch (Exception e)
                 {

@@ -19,7 +19,6 @@ namespace System.Net.Mail
         private SmtpConnection? _connection;
         private readonly SmtpClient _client;
         private ICredentialsByHost? _credentials;
-        private readonly List<SmtpFailedRecipientException> _failedRecipientExceptions = new List<SmtpFailedRecipientException>();
         private bool _shouldAbort;
 
         private bool _enableSsl;
@@ -117,47 +116,14 @@ namespace System.Net.Mail
             }
         }
 
-        internal async Task<MailWriter> SendMailAsync(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode)
-        {
-            return await SendMailAsync<AsyncReadWriteAdapter>(sender, recipients, deliveryNotify, allowUnicode).ConfigureAwait(false);
-        }
-
-        internal MailWriter SendMail(MailAddress sender, MailAddressCollection recipients, string deliveryNotify,
-            bool allowUnicode, out SmtpFailedRecipientException? exception)
-        {
-            var result = SendMailAsync<SyncReadWriteAdapter>(sender, recipients, deliveryNotify, allowUnicode).GetAwaiter().GetResult();
-            exception = null;
-
-            // Handle exceptions that might have been collected during sending
-            if (_failedRecipientExceptions.Count > 0)
-            {
-                if (_failedRecipientExceptions.Count == 1)
-                {
-                    exception = _failedRecipientExceptions[0];
-                }
-                else
-                {
-                    exception = new SmtpFailedRecipientsException(_failedRecipientExceptions, _failedRecipientExceptions.Count == recipients.Count);
-                }
-
-                if (_failedRecipientExceptions.Count == recipients.Count)
-                {
-                    exception.fatal = true;
-                    throw exception;
-                }
-            }
-
-            return result;
-        }
-
-        internal async Task<MailWriter> SendMailAsync<TIOAdapter>(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode, CancellationToken cancellationToken = default)
+        internal async Task<(MailWriter, List<SmtpFailedRecipientException>?)> SendMailAsync<TIOAdapter>(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode, CancellationToken cancellationToken = default)
             where TIOAdapter : IReadWriteAdapter
         {
             ArgumentNullException.ThrowIfNull(sender);
             ArgumentNullException.ThrowIfNull(recipients);
 
             await MailCommand.SendAsync<TIOAdapter>(_connection!, SmtpCommands.Mail, sender, allowUnicode, cancellationToken).ConfigureAwait(false);
-            _failedRecipientExceptions.Clear();
+            List<SmtpFailedRecipientException>? failedRecipientExceptions = null;
 
             foreach (MailAddress address in recipients)
             {
@@ -166,22 +132,22 @@ namespace System.Net.Mail
                 (bool success, string? response) = await RecipientCommand.SendAsync<TIOAdapter>(_connection, to, cancellationToken).ConfigureAwait(false);
                 if (!success)
                 {
-                    _failedRecipientExceptions.Add(
+                    (failedRecipientExceptions ??= new()).Add(
                         new SmtpFailedRecipientException(_connection.Reader!.StatusCode, smtpAddress, response));
                 }
             }
 
-            if (_failedRecipientExceptions.Count > 0 && _failedRecipientExceptions.Count == recipients.Count)
+            if (failedRecipientExceptions?.Count > 0 && failedRecipientExceptions.Count == recipients.Count)
             {
-                var exception = _failedRecipientExceptions.Count == 1
-                    ? _failedRecipientExceptions[0]
-                    : new SmtpFailedRecipientsException(_failedRecipientExceptions, true);
+                var exception = failedRecipientExceptions.Count == 1
+                    ? failedRecipientExceptions[0]
+                    : new SmtpFailedRecipientsException(failedRecipientExceptions, true);
                 exception.fatal = true;
                 throw exception;
             }
 
             await DataCommand.SendAsync<TIOAdapter>(_connection!, cancellationToken).ConfigureAwait(false);
-            return new MailWriter(_connection!.GetClosableStream(), encodeForTransport: true);
+            return (new MailWriter(_connection!.GetClosableStream(), encodeForTransport: true), failedRecipientExceptions);
         }
 
         internal void ReleaseConnection()

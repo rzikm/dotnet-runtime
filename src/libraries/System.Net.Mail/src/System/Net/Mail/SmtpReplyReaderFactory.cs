@@ -298,53 +298,59 @@ namespace System.Net.Mail
             var lines = new List<LineInfo>();
             int statusRead = 0;
 
+            int start = 0;
+            int read = 0;
+
             while (true)
             {
-                int read = await TIOAdapter.ReadAsync(_bufferedStream, _byteBuffer.AsMemory(0, _byteBuffer.Length), cancellationToken).ConfigureAwait(false);
-                if (read == 0)
+                if (start == read)
                 {
-                    throw new IOException(SR.Format(SR.net_io_readfailure, SR.net_io_connectionclosed));
+                    start = 0;
+                    read = await TIOAdapter.ReadAsync(_bufferedStream, _byteBuffer, cancellationToken).ConfigureAwait(false);
+                    if (read == 0)
+                    {
+                        throw new IOException(SR.Format(SR.net_io_readfailure, SR.net_io_connectionclosed));
+                    }
                 }
 
-                for (int start = 0; start < read;)
+                int actual = ProcessRead(_byteBuffer!.AsSpan(start, read - start), true);
+
+                if (statusRead < 4)
                 {
-                    int actual = ProcessRead(_byteBuffer!.AsSpan(start, read - start), true);
-
-                    if (statusRead < 4)
+                    int left = Math.Min(4 - statusRead, actual);
+                    statusRead += left;
+                    start += left;
+                    actual -= left;
+                    if (actual == 0)
                     {
-                        int left = Math.Min(4 - statusRead, actual);
-                        statusRead += left;
-                        start += left;
-                        actual -= left;
-                        if (actual == 0)
-                        {
-                            continue;
-                        }
+                        continue;
                     }
+                }
 
-                    builder.Append(Encoding.UTF8.GetString(_byteBuffer, start, actual));
-                    start += actual;
+                builder.Append(Encoding.UTF8.GetString(_byteBuffer, start, actual));
+                start += actual;
 
-                    if (_readState == ReadState.Status0)
+                if (_readState == ReadState.Status0)
+                {
+                    statusRead = 0;
+                    lines.Add(new LineInfo(_statusCode, builder.ToString(0, builder.Length - 2))); // Exclude CRLF
+
+                    if (oneLine)
                     {
-                        statusRead = 0;
-                        lines.Add(new LineInfo(_statusCode, builder.ToString(0, builder.Length - 2))); // Exclude CRLF
-
-                        if (oneLine)
-                        {
-                            _bufferedStream.Push(_byteBuffer!.AsSpan(start, read - start));
-                            break;
-                        }
-                    }
-                    else if (_readState == ReadState.Done)
-                    {
-                        lines!.Add(new LineInfo(_statusCode, builder.ToString(0, builder.Length - 2))); // return everything except CRLF
                         _bufferedStream.Push(_byteBuffer!.AsSpan(start, read - start));
-                        break;
+                        return lines.ToArray();
                     }
+
+                    builder.Clear();
                 }
-                return lines.ToArray();
+                else if (_readState == ReadState.Done)
+                {
+                    lines!.Add(new LineInfo(_statusCode, builder.ToString(0, builder.Length - 2))); // return everything except CRLF
+                    _bufferedStream.Push(_byteBuffer!.AsSpan(start, read - start));
+                    return lines.ToArray();
+                }
             }
+
         }
 
         internal async Task<LineInfo> ReadLineAsync(SmtpReplyReader caller)
