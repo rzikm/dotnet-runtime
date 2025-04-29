@@ -401,14 +401,10 @@ namespace System.Net.Mail
             SendAsyncInternal<SyncReadWriteAdapter>(message, false, null).GetAwaiter().GetResult();
         }
 
-        private async Task SendAsyncInternal<TIOAdapter>(MailMessage message, bool invokeSendCompleted, object? userToken, CancellationToken cancellationToken = default)
+        private async Task SendAsyncInternal<TIOAdapter>(MailMessage message, bool invokeSendCompleted, object? userToken, bool forceWrapExceptions = false, CancellationToken cancellationToken = default)
             where TIOAdapter : IReadWriteAdapter
         {
-            ArgumentNullException.ThrowIfNull(message);
-
             ObjectDisposedException.ThrowIf(_disposed, this);
-
-            cancellationToken.ThrowIfCancellationRequested();
 
             if (NetEventSource.Log.IsEnabled())
             {
@@ -416,55 +412,62 @@ namespace System.Net.Mail
                 NetEventSource.Associate(this, message);
             }
 
-            if (InCall)
-            {
-                throw new InvalidOperationException(SR.net_inasync);
-            }
-
-            if (DeliveryMethod == SmtpDeliveryMethod.Network)
-                CheckHostAndPort();
-
-            MailAddressCollection recipients = new MailAddressCollection();
-
-            if (message.From == null)
-            {
-                throw new InvalidOperationException(SR.SmtpFromRequired);
-            }
-
-            if (message.To != null)
-            {
-                foreach (MailAddress address in message.To)
-                {
-                    recipients.Add(address);
-                }
-            }
-            if (message.Bcc != null)
-            {
-                foreach (MailAddress address in message.Bcc)
-                {
-                    recipients.Add(address);
-                }
-            }
-            if (message.CC != null)
-            {
-                foreach (MailAddress address in message.CC)
-                {
-                    recipients.Add(address);
-                }
-            }
-
-            if (recipients.Count == 0)
-            {
-                throw new InvalidOperationException(SR.SmtpRecipientRequired);
-            }
+            // initial exceptions should be thrown directly, not via callback
+            bool doInvokeSendCompleted = false;
 
             Exception? exception = null;
             try
             {
                 try
                 {
+                    if (InCall)
+                    {
+                        throw new InvalidOperationException(SR.net_inasync);
+                    }
+
+                    ArgumentNullException.ThrowIfNull(message);
+
+                    if (DeliveryMethod == SmtpDeliveryMethod.Network)
+                        CheckHostAndPort();
+
+                    MailAddressCollection recipients = new MailAddressCollection();
+
+                    if (message.From == null)
+                    {
+                        throw new InvalidOperationException(SR.SmtpFromRequired);
+                    }
+
+                    if (message.To != null)
+                    {
+                        foreach (MailAddress address in message.To)
+                        {
+                            recipients.Add(address);
+                        }
+                    }
+                    if (message.Bcc != null)
+                    {
+                        foreach (MailAddress address in message.Bcc)
+                        {
+                            recipients.Add(address);
+                        }
+                    }
+                    if (message.CC != null)
+                    {
+                        foreach (MailAddress address in message.CC)
+                        {
+                            recipients.Add(address);
+                        }
+                    }
+
+                    if (recipients.Count == 0)
+                    {
+                        throw new InvalidOperationException(SR.SmtpRecipientRequired);
+                    }
                     // TODO: Interlocked.CompareExchange for InCall
                     InCall = true;
+
+                    // argument validation is done, wrap all exceptions below this point
+                    forceWrapExceptions = true;
 
                     _timedOut = false;
                     _timer = new Timer(new TimerCallback(TimeOutCallback), null, Timeout, Timeout);
@@ -491,6 +494,7 @@ namespace System.Net.Mail
 
                         case SmtpDeliveryMethod.Network:
                         default:
+                            doInvokeSendCompleted = invokeSendCompleted;
                             await EnsureConnection<TIOAdapter>(cancellationToken).ConfigureAwait(false);
                             // Detected during EnsureConnection(), restrictable using the DeliveryFormat parameter
                             allowUnicode = IsUnicodeSupported();
@@ -500,6 +504,7 @@ namespace System.Net.Mail
                             break;
                     }
                     _message = message;
+                    doInvokeSendCompleted = invokeSendCompleted;
                     await message.SendAsync<TIOAdapter>(writer, DeliveryMethod != SmtpDeliveryMethod.Network, allowUnicode, cancellationToken).ConfigureAwait(false);
                     writer.Close();
 
@@ -527,7 +532,8 @@ namespace System.Net.Mail
                         throw new SmtpException(SR.net_timeout);
                     }
 
-                    if (e is SecurityException ||
+                    if (!forceWrapExceptions ||
+                        e is SecurityException ||
                         e is AuthenticationException ||
                         e is SmtpException)
                     {
@@ -542,15 +548,16 @@ namespace System.Net.Mail
                     _timer?.Dispose();
                 }
             }
-            catch (Exception e) when (invokeSendCompleted)
+            catch (Exception e) when (doInvokeSendCompleted)
             {
                 exception = e;
             }
             finally
             {
-                if (invokeSendCompleted)
+                if (doInvokeSendCompleted)
                 {
                     AsyncCompletedEventArgs eventArgs = new AsyncCompletedEventArgs(exception, _cancelled, userToken);
+                    OnSendCompleted(eventArgs);
                 }
             }
         }
@@ -563,7 +570,7 @@ namespace System.Net.Mail
 
         public void SendAsync(MailMessage message, object? userToken)
         {
-            Task task = SendAsyncInternal<AsyncReadWriteAdapter>(message, true, userToken);
+            Task task = SendAsyncInternal<AsyncReadWriteAdapter>(message, true, userToken, true);
 
             if (task.IsCompleted)
             {
@@ -620,7 +627,12 @@ namespace System.Net.Mail
 
         public Task SendMailAsync(MailMessage message, CancellationToken cancellationToken)
         {
-            Task t = SendAsyncInternal<AsyncReadWriteAdapter>(message, false, null, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled(cancellationToken);
+            }
+
+            Task t = SendAsyncInternal<AsyncReadWriteAdapter>(message, false, null, true, cancellationToken);
 
             if (t.IsFaulted)
             {

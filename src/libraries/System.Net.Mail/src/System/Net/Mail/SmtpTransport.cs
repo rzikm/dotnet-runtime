@@ -85,35 +85,28 @@ namespace System.Net.Mail
             await GetConnectionAsync<AsyncReadWriteAdapter>(outerResult, host, port, cancellationToken).ConfigureAwait(false);
         }
 
-        internal async Task GetConnectionAsync<TIOAdapter>(ContextAwareResult? outerResult, string host, int port, CancellationToken cancellationToken = default)
+        internal Task GetConnectionAsync<TIOAdapter>(ContextAwareResult? outerResult, string host, int port, CancellationToken cancellationToken = default)
             where TIOAdapter : IReadWriteAdapter
         {
-            try
+            lock (this)
             {
-                lock (this)
+                _connection = new SmtpConnection(this, _client, _credentials, _authenticationModules);
+                if (_shouldAbort)
                 {
-                    _connection = new SmtpConnection(this, _client, _credentials, _authenticationModules);
-                    if (_shouldAbort)
-                    {
-                        _connection.Abort();
-                    }
-                    _shouldAbort = false;
+                    _connection.Abort();
                 }
-
-                if (NetEventSource.Log.IsEnabled()) NetEventSource.Associate(this, _connection);
-
-                if (EnableSsl)
-                {
-                    _connection.EnableSsl = true;
-                    _connection.ClientCertificates = ClientCertificates;
-                }
-
-                await _connection.GetConnectionAsync<TIOAdapter>(host, port, cancellationToken).ConfigureAwait(false);
+                _shouldAbort = false;
             }
-            catch (Exception innerException)
+
+            if (NetEventSource.Log.IsEnabled()) NetEventSource.Associate(this, _connection);
+
+            if (EnableSsl)
             {
-                throw new SmtpException(SR.MailHostNotFound, innerException);
+                _connection.EnableSsl = true;
+                _connection.ClientCertificates = ClientCertificates;
             }
+
+            return _connection.GetConnectionAsync<TIOAdapter>(host, port, cancellationToken);
         }
 
         internal async Task<(MailWriter, List<SmtpFailedRecipientException>?)> SendMailAsync<TIOAdapter>(MailAddress sender, MailAddressCollection recipients, string deliveryNotify, bool allowUnicode, CancellationToken cancellationToken = default)

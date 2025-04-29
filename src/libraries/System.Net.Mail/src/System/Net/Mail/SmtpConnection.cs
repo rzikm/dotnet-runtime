@@ -115,7 +115,7 @@ namespace System.Net.Mail
             _responseReader = new SmtpReplyReaderFactory(_stream!);
 
             // Read the initial greeting
-            LineInfo info = _responseReader.GetNextReplyReader().ReadLine();
+            LineInfo info = await _responseReader.GetNextReplyReader().ReadLineAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
 
             switch (info.StatusCode)
             {
