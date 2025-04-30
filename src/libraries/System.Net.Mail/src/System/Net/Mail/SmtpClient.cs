@@ -533,8 +533,9 @@ namespace System.Net.Mail
                     }
 
                     if (!forceWrapExceptions ||
-                        e is SecurityException ||
-                        e is AuthenticationException ||
+                        // for compatibility reasons, don't wrap these exceptions during sync executions
+                        (typeof(TIOAdapter) == typeof(SyncReadWriteAdapter) &&
+                            (e is SecurityException || e is AuthenticationException)) ||
                         e is SmtpException)
                     {
                         throw;
