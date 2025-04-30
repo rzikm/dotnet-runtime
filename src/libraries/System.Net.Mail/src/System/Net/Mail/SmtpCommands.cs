@@ -19,8 +19,7 @@ namespace System.Net.Mail
             where TIOAdapter : IReadWriteAdapter
         {
             await conn.FlushAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
-            using SmtpReplyReader reader = conn.Reader!.GetNextReplyReader();
-            return await reader.ReadLineAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
+            return await conn.Reader!.GetNextReplyReader().ReadLineAsync<TIOAdapter>(cancellationToken).ConfigureAwait(false);
         }
     }
 
