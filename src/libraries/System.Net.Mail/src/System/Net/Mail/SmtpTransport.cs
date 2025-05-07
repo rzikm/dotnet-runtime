@@ -77,15 +77,15 @@ namespace System.Net.Mail
 
         internal void GetConnection(string host, int port)
         {
-            GetConnectionAsync<SyncReadWriteAdapter>(null, host, port).GetAwaiter().GetResult();
+            GetConnectionAsync<SyncReadWriteAdapter>(host, port).GetAwaiter().GetResult();
         }
 
-        internal async Task GetConnectionAsync(ContextAwareResult? outerResult, string host, int port, CancellationToken cancellationToken = default)
+        internal async Task GetConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
         {
-            await GetConnectionAsync<AsyncReadWriteAdapter>(outerResult, host, port, cancellationToken).ConfigureAwait(false);
+            await GetConnectionAsync<AsyncReadWriteAdapter>(host, port, cancellationToken).ConfigureAwait(false);
         }
 
-        internal Task GetConnectionAsync<TIOAdapter>(ContextAwareResult? outerResult, string host, int port, CancellationToken cancellationToken = default)
+        internal Task GetConnectionAsync<TIOAdapter>(string host, int port, CancellationToken cancellationToken = default)
             where TIOAdapter : IReadWriteAdapter
         {
             lock (this)

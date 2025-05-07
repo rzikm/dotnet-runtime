@@ -20,8 +20,6 @@ namespace System.Net.Mail
 {
     internal sealed partial class SmtpConnection
     {
-        private static readonly ContextCallback s_AuthenticateCallback = new ContextCallback(AuthenticateCallback);
-
         private readonly BufferBuilder _bufferBuilder = new BufferBuilder();
         private bool _isConnected;
         private bool _isClosed;
@@ -206,7 +204,7 @@ namespace System.Net.Mail
                     if (credential == null)
                         continue;
 
-                    Authorization? auth = SetContextAndTryAuthenticate(_authenticationModules[i], credential, null);
+                    Authorization? auth = SetContextAndTryAuthenticate(_authenticationModules[i], credential);
 
                     if (auth != null && auth.Message != null)
                     {
@@ -320,66 +318,9 @@ namespace System.Net.Mail
             ShutdownConnection(true);
         }
 
-        private Authorization? SetContextAndTryAuthenticate(ISmtpAuthenticationModule module, NetworkCredential? credential, ContextAwareResult? context)
+        private Authorization? SetContextAndTryAuthenticate(ISmtpAuthenticationModule module, NetworkCredential? credential)
         {
-            // We may need to restore user thread token here
-            if (ReferenceEquals(credential, CredentialCache.DefaultNetworkCredentials))
-            {
-#if DEBUG
-                Debug.Assert(context == null || context.IdentityRequested, "Authentication required when it wasn't expected.  (Maybe Credentials was changed on another thread?)");
-#endif
-                try
-                {
-                    ExecutionContext? x = context?.ContextCopy;
-                    if (x != null)
-                    {
-                        AuthenticateCallbackContext authenticationContext =
-                            new AuthenticateCallbackContext(this, module, credential, _client!.TargetName, null);
-
-                        ExecutionContext.Run(x, s_AuthenticateCallback, authenticationContext);
-                        return authenticationContext._result;
-                    }
-                    else
-                    {
-                        return module.Authenticate(null, credential, this, _client!.TargetName, null);
-                    }
-                }
-                catch
-                {
-                    // Prevent the impersonation from leaking to upstack exception filters.
-                    throw;
-                }
-            }
-
             return module.Authenticate(null, credential, this, _client!.TargetName, null);
-        }
-
-        private static void AuthenticateCallback(object? state)
-        {
-            AuthenticateCallbackContext context = (AuthenticateCallbackContext)state!;
-            context._result = context._module.Authenticate(null, context._credential, context._thisPtr, context._spn, context._token);
-        }
-
-        private sealed class AuthenticateCallbackContext
-        {
-            internal AuthenticateCallbackContext(SmtpConnection thisPtr, ISmtpAuthenticationModule module, NetworkCredential credential, string? spn, ChannelBinding? Token)
-            {
-                _thisPtr = thisPtr;
-                _module = module;
-                _credential = credential;
-                _spn = spn;
-                _token = Token;
-
-                _result = null;
-            }
-
-            internal readonly SmtpConnection _thisPtr;
-            internal readonly ISmtpAuthenticationModule _module;
-            internal readonly NetworkCredential _credential;
-            internal readonly string? _spn;
-            internal readonly ChannelBinding? _token;
-
-            internal Authorization? _result;
         }
 
         internal Stream GetClosableStream()

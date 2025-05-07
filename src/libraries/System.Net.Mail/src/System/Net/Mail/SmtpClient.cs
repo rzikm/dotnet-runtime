@@ -711,7 +711,7 @@ namespace System.Net.Mail
                 return Task.CompletedTask;
             }
 
-            return _transport.GetConnectionAsync<TIOAdapter>(null, _host!, _port, cancellationToken);
+            return _transport.GetConnectionAsync<TIOAdapter>(_host!, _port, cancellationToken);
         }
 
         private void Abort() => _transport.Abort();
