@@ -352,7 +352,12 @@ namespace System.Net.Security
                 {
                     // Call Init with null callbacks to check if Network Framework is available
                     if (NetEventSource.Log.IsEnabled()) NetEventSource.Info(null, "Checking Network Framework availability...");
-                    return !Interop.NetworkFramework.Tls.Init(&StatusUpdateCallback, &WriteOutboundWireData, &ChallengeCallback);
+                    bool isAvailable = !Interop.NetworkFramework.Tls.Init(&StatusUpdateCallback, &WriteOutboundWireData, &ChallengeCallback);
+                    if (NetEventSource.Log.IsEnabled())
+                    {
+                        NetEventSource.Info(null, $"Network Framework availability check completed: {isAvailable}");
+                    }
+                    return isAvailable;
                 }
             }
             catch
@@ -597,6 +602,11 @@ namespace System.Net.Security
                         NetEventSource.Info(nwContext, $"ChallengeCallback already processed, returning cached result: {nwContext._selectedClientCertificate}");
                     }
                     return nwContext._selectedClientCertificate;
+                }
+
+                if (nwContext.SslAuthenticationOptions.IsServer)
+                {
+                    return nwContext._selectedClientCertificate = nwContext.SslAuthenticationOptions.CertificateContext?.TargetCertificate.Handle ?? IntPtr.Zero;
                 }
 
                 nwContext._acceptableIssuers = ExtractAcceptableIssuers(acceptableIssuersHandle);
