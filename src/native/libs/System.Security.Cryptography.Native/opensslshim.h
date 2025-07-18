@@ -722,6 +722,7 @@ extern bool g_libSslUses32BitTime;
     REQUIRED_FUNCTION(X509_check_host) \
     REQUIRED_FUNCTION(X509_check_purpose) \
     REQUIRED_FUNCTION(X509_cmp_time) \
+    REQUIRED_FUNCTION(X509_CRL_up_ref) \
     REQUIRED_FUNCTION(X509_CRL_free) \
     REQUIRED_FUNCTION(X509_CRL_get0_nextUpdate) \
     REQUIRED_FUNCTION(X509_digest) \
@@ -1283,6 +1284,7 @@ extern TYPEOF(OPENSSL_gmtime)* OPENSSL_gmtime_ptr;
 #define X509_check_host X509_check_host_ptr
 #define X509_check_purpose X509_check_purpose_ptr
 #define X509_cmp_time X509_cmp_time_ptr
+#define X509_CRL_up_ref X509_CRL_up_ref_ptr
 #define X509_CRL_free X509_CRL_free_ptr
 #define X509_CRL_get0_nextUpdate X509_CRL_get0_nextUpdate_ptr
 #define X509_digest X509_digest_ptr

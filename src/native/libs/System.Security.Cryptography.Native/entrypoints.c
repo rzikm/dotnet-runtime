@@ -305,6 +305,7 @@ static const Entry s_cryptoNative[] =
     DllImportEntry(CryptoNative_X509ChainVerifyOcsp)
     DllImportEntry(CryptoNative_X509CheckPurpose)
     DllImportEntry(CryptoNative_X509CrlDestroy)
+    DllImportEntry(CryptoNative_X509CrlUpRef)
     DllImportEntry(CryptoNative_X509Destroy)
     DllImportEntry(CryptoNative_X509ExtensionCreateByObj)
     DllImportEntry(CryptoNative_X509ExtensionDestroy)

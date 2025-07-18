@@ -262,6 +262,9 @@ internal static partial class Interop
         [LibraryImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_X509CrlDestroy")]
         internal static partial void X509CrlDestroy(IntPtr a);
 
+        [LibraryImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_X509CrlUpRef")]
+        internal static partial SafeX509CrlHandle X509CrlUpRef(IntPtr a);
+
         [LibraryImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_PemWriteBioX509Crl")]
         internal static partial int PemWriteBioX509Crl(SafeBioHandle bio, SafeX509CrlHandle crl);
 

@@ -385,14 +385,15 @@ namespace System.Security.Cryptography.X509Certificates
                 {
                     for (int i = 0; i < revocationSize; i++)
                     {
-                        if (i == 0 && Interop.Crypto.X509ChainHasStapledOcsp(_storeCtx))
-                        {
-                            if (OpenSslX509ChainEventSource.Log.IsEnabled())
-                            {
-                                OpenSslX509ChainEventSource.Log.StapledOcspPresent();
-                            }
-                        }
-                        else
+                        // DEBUG: Disable OCSP to force CRL parsing
+                        // if (i == 0 && Interop.Crypto.X509ChainHasStapledOcsp(_storeCtx))
+                        // {
+                        //     if (OpenSslX509ChainEventSource.Log.IsEnabled())
+                        //     {
+                        //         OpenSslX509ChainEventSource.Log.StapledOcspPresent();
+                        //     }
+                        // }
+                        // else
                         {
                             using (SafeX509Handle cert =
                                 Interop.Crypto.X509UpRef(Interop.Crypto.GetX509StackField(chainStack, i)))
@@ -1607,7 +1608,7 @@ namespace System.Security.Cryptography.X509Certificates
                         return false;
                     }
 
-FindNextBit:
+                FindNextBit:
                     if (_lastBit == -1)
                     {
                         _lastBucket++;

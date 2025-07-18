@@ -377,6 +377,17 @@ const char* CryptoNative_X509VerifyCertErrorString(int32_t n)
     return X509_verify_cert_error_string((long)n);
 }
 
+X509_CRL* CryptoNative_X509CrlUpRef(X509_CRL* a)
+{
+    if (a != NULL)
+    {
+        // Just a field mutator, no error queue interactions apply.
+        X509_CRL_up_ref(a);
+    }
+
+    return a;
+}
+
 void CryptoNative_X509CrlDestroy(X509_CRL* a)
 {
     if (a != NULL)
