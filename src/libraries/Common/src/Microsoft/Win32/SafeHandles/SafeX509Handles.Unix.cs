@@ -47,6 +47,22 @@ namespace Microsoft.Win32.SafeHandles
 
     internal sealed class SafeX509CrlHandle : SafeHandle
     {
+#if DEBUG
+        private static readonly bool s_captureTrace =
+            Environment.GetEnvironmentVariable("DEBUG_SAFEX509HANDLE_FINALIZATION") != null;
+
+        private readonly StackTrace? _stacktrace =
+            s_captureTrace ? new StackTrace(fNeedFileInfo: true) : null;
+
+        ~SafeX509CrlHandle()
+        {
+            if (s_captureTrace)
+            {
+                Console.WriteLine($"0x{handle.ToInt64():x} {_stacktrace?.ToString() ?? "no stacktrace..."}");
+            }
+        }
+#endif
+
         public SafeX509CrlHandle() :
             base(IntPtr.Zero, ownsHandle: true)
         {

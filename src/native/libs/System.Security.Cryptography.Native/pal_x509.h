@@ -311,6 +311,14 @@ Shims the X509_CRL_free method.
 PALEXPORT void CryptoNative_X509CrlDestroy(X509_CRL* a);
 
 /*
+Increases the reference count of the X509_CRL*, thereby increasing the number of calls
+required to the free function.
+
+Returns the input value.
+*/
+PALEXPORT X509_CRL* CryptoNative_X509CrlUpRef(X509_CRL* a);
+
+/*
 Shims the PEM_write_bio_X509_CRL method.
 
 Returns the number of bytes written.
