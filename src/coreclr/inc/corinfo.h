@@ -722,6 +722,7 @@ enum CorInfoOptions
                                                CORINFO_GENERICS_CTXT_FROM_METHODDESC |
                                                CORINFO_GENERICS_CTXT_FROM_METHODTABLE),
     CORINFO_GENERICS_CTXT_KEEP_ALIVE        = 0x00000100, // Keep the generics context alive throughout the method even if there is no explicit use, and report its location to the CLR
+    CORINFO_ASYNC_SAVE_CONTEXTS             = 0x00000200, // Runtime async method must save and restore contexts
 };
 
 //
@@ -1635,6 +1636,17 @@ struct CORINFO_EH_CLAUSE
     };
 };
 
+enum CorInfoArch
+{
+    CORINFO_ARCH_X86,
+    CORINFO_ARCH_X64,
+    CORINFO_ARCH_ARM,
+    CORINFO_ARCH_ARM64,
+    CORINFO_ARCH_LOONGARCH64,
+    CORINFO_ARCH_RISCV64,
+    CORINFO_ARCH_WASM32,
+};
+
 enum CORINFO_OS
 {
     CORINFO_WINNT,
@@ -1742,13 +1754,18 @@ struct CORINFO_ASYNC_INFO
     CORINFO_FIELD_HANDLE continuationStateFldHnd;
     // 'Flags' field
     CORINFO_FIELD_HANDLE continuationFlagsFldHnd;
-    // Method handle for AsyncHelpers.CaptureExecutionContext
+    // Method handle for AsyncHelpers.CaptureExecutionContext, used during suspension
     CORINFO_METHOD_HANDLE captureExecutionContextMethHnd;
-    // Method handle for AsyncHelpers.RestoreExecutionContext
+    // Method handle for AsyncHelpers.RestoreExecutionContext, used during resumption
     CORINFO_METHOD_HANDLE restoreExecutionContextMethHnd;
+    // Method handle for AsyncHelpers.CaptureContinuationContext, used during suspension
     CORINFO_METHOD_HANDLE captureContinuationContextMethHnd;
+    // Method handle for AsyncHelpers.CaptureContexts, used at the beginning of async methods
     CORINFO_METHOD_HANDLE captureContextsMethHnd;
+    // Method handle for AsyncHelpers.RestoreContexts, used before normal returns from async methods
     CORINFO_METHOD_HANDLE restoreContextsMethHnd;
+    // Method handle for AsyncHelpers.RestoreContextsOnSuspension, used before suspending in async methods
+    CORINFO_METHOD_HANDLE restoreContextsOnSuspensionMethHnd;
 };
 
 // Flags passed from JIT to runtime.
