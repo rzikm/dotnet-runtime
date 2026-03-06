@@ -62,7 +62,7 @@ namespace System.IO.Compression
         /// <param name="overwrite">True to indicate overwrite.</param>
         public static void ExtractToFile(this ZipArchiveEntry source, string destinationFileName, bool overwrite)
         {
-            ExtractToFileInitialize(source, destinationFileName, overwrite, out FileStreamOptions fileStreamOptions);
+            ExtractToFileInitialize(source, destinationFileName, overwrite, async: false, out FileStreamOptions fileStreamOptions);
 
             using (FileStream fs = new FileStream(destinationFileName, fileStreamOptions))
             {
@@ -73,7 +73,7 @@ namespace System.IO.Compression
             ExtractToFileFinalize(source, destinationFileName);
         }
 
-        private static void ExtractToFileInitialize(ZipArchiveEntry source, string destinationFileName, bool overwrite, out FileStreamOptions fileStreamOptions)
+        private static void ExtractToFileInitialize(ZipArchiveEntry source, string destinationFileName, bool overwrite, bool async, out FileStreamOptions fileStreamOptions)
         {
             ArgumentNullException.ThrowIfNull(source);
             ArgumentNullException.ThrowIfNull(destinationFileName);
@@ -83,7 +83,9 @@ namespace System.IO.Compression
                 Access = FileAccess.Write,
                 Mode = overwrite ? FileMode.Create : FileMode.CreateNew,
                 Share = FileShare.None,
-                BufferSize = ZipFile.FileStreamBufferSize
+                BufferSize = ZipFile.FileStreamBufferSize,
+                PreallocationSize = source.Length,
+                Options = async ? FileOptions.Asynchronous : FileOptions.None
             };
 
             const UnixFileMode OwnershipPermissions =

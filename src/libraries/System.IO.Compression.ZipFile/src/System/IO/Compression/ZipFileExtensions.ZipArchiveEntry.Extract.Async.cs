@@ -71,7 +71,7 @@ public static partial class ZipFileExtensions
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        ExtractToFileInitialize(source, destinationFileName, overwrite, out FileStreamOptions fileStreamOptions);
+        ExtractToFileInitialize(source, destinationFileName, overwrite, async: true, out FileStreamOptions fileStreamOptions);
 
         FileStream fs = new FileStream(destinationFileName, fileStreamOptions);
         await using (fs)
