@@ -50,6 +50,17 @@ internal static partial class Interop
         [LibraryImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslGetVersion")]
         internal static partial IntPtr SslGetVersion(SafeSslHandle ssl);
 
+        [LibraryImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslExportKeyingMaterial")]
+        internal static unsafe partial int SslExportKeyingMaterial(
+            SafeSslHandle ssl,
+            int haveContext,
+            byte* context,
+            int contextLength,
+            byte* label,
+            int labelLength,
+            byte* output,
+            int outputLength);
+
         [LibraryImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslSetTlsExtHostName", StringMarshalling = StringMarshalling.Utf8)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static partial bool SslSetTlsExtHostName(SafeSslHandle ssl, string host);

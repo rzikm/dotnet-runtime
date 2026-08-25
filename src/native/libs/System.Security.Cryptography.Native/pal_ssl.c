@@ -372,6 +372,28 @@ const char* CryptoNative_SslGetVersion(SSL* ssl)
     return SSL_get_version(ssl);
 }
 
+int32_t CryptoNative_SslExportKeyingMaterial(SSL* ssl,
+                                             int32_t haveContext,
+                                             const uint8_t* context,
+                                             int32_t contextLength,
+                                             const uint8_t* label,
+                                             int32_t labelLength,
+                                             uint8_t* output,
+                                             int32_t outputLength)
+{
+    ERR_clear_error();
+
+    return (int32_t)SSL_export_keying_material(
+        ssl,
+        output,
+        (size_t)outputLength,
+        (const char*)label,
+        (size_t)labelLength,
+        context,
+        (size_t)contextLength,
+        haveContext);
+}
+
 int32_t CryptoNative_SslGetFinished(SSL* ssl, void* buf, int32_t count)
 {
     // No error queue impact.

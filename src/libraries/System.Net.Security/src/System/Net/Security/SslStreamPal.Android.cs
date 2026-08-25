@@ -195,6 +195,16 @@ namespace System.Net.Security
             streamSizes = StreamSizes.Default;
         }
 
+        public static void ExportKeyingMaterial(
+            SafeDeleteContext securityContext,
+            ReadOnlySpan<byte> label,
+            ReadOnlySpan<byte> context,
+            bool haveContext,
+            Span<byte> output)
+        {
+            throw new PlatformNotSupportedException(SR.net_ssl_export_keying_material_not_supported);
+        }
+
         public static void QueryContextConnectionInfo(
             SafeDeleteSslContext securityContext,
             ref SslConnectionInfo connectionInfo)

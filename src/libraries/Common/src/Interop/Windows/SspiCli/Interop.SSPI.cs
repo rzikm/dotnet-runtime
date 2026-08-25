@@ -68,6 +68,8 @@ internal static partial class Interop
             SECPKG_ATTR_CIPHER_INFO = 0x64,            // returns SecPkgContext_CipherInfo
             SECPKG_ATTR_REMOTE_CERT_CHAIN = 0x67,      // returns PCCERT_CONTEXT
             SECPKG_ATTR_UI_INFO = 0x68,                // sets    SEcPkgContext_UiInfo
+            SECPKG_ATTR_KEYING_MATERIAL_INFO = 0x6a,   // sets    SecPkgContext_KeyingMaterialInfo
+            SECPKG_ATTR_KEYING_MATERIAL = 0x6b,        // returns SecPkgContext_KeyingMaterial
         }
 
         // These values are defined within sspi.h as ISC_REQ_*, ISC_RET_*, ASC_REQ_* and ASC_RET_*.
@@ -352,6 +354,23 @@ internal static partial class Interop
                 Zero = 0,
                 SSL_SESSION_RECONNECT = 0x01,
             };
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct SecPkgContext_KeyingMaterialInfo
+        {
+            public ushort cbLabel;
+            public IntPtr pszLabel;
+            public ushort cbContextValue;
+            public IntPtr pbContextValue;
+            public uint cbKeyingMaterial;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct SecPkgContext_KeyingMaterial
+        {
+            public uint cbKeyingMaterial;
+            public IntPtr pbKeyingMaterial;
         }
 
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

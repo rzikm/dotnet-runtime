@@ -24,6 +24,7 @@
     <Compile Include="CertificateValidationRemoteServer.cs" />
     <Compile Include="ClientAsyncAuthenticateTest.cs" />
     <Compile Include="ClientDefaultEncryptionTest.cs" />
+    <Compile Include="ExportKeyingMaterialTest.cs" />
     <Compile Include="ParameterValidationTest.cs" />
     <Compile Include="ServerAllowNoEncryptionTest.cs" />
     <Compile Include="ServerAsyncAuthenticateTest.cs" />

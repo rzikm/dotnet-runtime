@@ -653,6 +653,49 @@ namespace System.Net.Security
             }
         }
 
+        /// <summary>
+        /// Exports keying material from the established TLS connection, as described in RFC 5705
+        /// (for TLS 1.2 and earlier) and RFC 8446 section 7.5 (for TLS 1.3).
+        /// </summary>
+        /// <param name="label">The disambiguating label that binds the exported material to a specific application use.</param>
+        /// <param name="output">The buffer that receives the exported keying material. The whole buffer is filled with the requested number of bytes. If empty, the method returns without exporting any material.</param>
+        /// <exception cref="InvalidOperationException">The TLS handshake has not completed, or authentication has not been performed.</exception>
+        /// <exception cref="PlatformNotSupportedException">Exporting keying material is not supported on the current platform.</exception>
+        /// <remarks>
+        /// This overload derives keying material without a context value, which is distinct from
+        /// supplying an empty context to the <see cref="ExportKeyingMaterial(ReadOnlySpan{byte}, ReadOnlySpan{byte}, Span{byte})"/> overload.
+        /// </remarks>
+        public void ExportKeyingMaterial(ReadOnlySpan<byte> label, Span<byte> output) =>
+            ExportKeyingMaterialCore(label, default, haveContext: false, output);
+
+        /// <summary>
+        /// Exports keying material from the established TLS connection using an application-supplied
+        /// context value, as described in RFC 5705 (for TLS 1.2 and earlier) and RFC 8446 section 7.5 (for TLS 1.3).
+        /// </summary>
+        /// <param name="label">The disambiguating label that binds the exported material to a specific application use.</param>
+        /// <param name="context">The application-supplied context value that is mixed into the exported material.</param>
+        /// <param name="output">The buffer that receives the exported keying material. The whole buffer is filled with the requested number of bytes. If empty, the method returns without exporting any material.</param>
+        /// <exception cref="InvalidOperationException">The TLS handshake has not completed, or authentication has not been performed.</exception>
+        /// <exception cref="PlatformNotSupportedException">Exporting keying material is not supported on the current platform.</exception>
+        public void ExportKeyingMaterial(ReadOnlySpan<byte> label, ReadOnlySpan<byte> context, Span<byte> output) =>
+            ExportKeyingMaterialCore(label, context, haveContext: true, output);
+
+        private void ExportKeyingMaterialCore(ReadOnlySpan<byte> label, ReadOnlySpan<byte> context, bool haveContext, Span<byte> output)
+        {
+            ThrowIfExceptionalOrNotHandshake();
+
+            if (output.IsEmpty)
+            {
+                // Nothing was requested, so there is no work to do. Returning early keeps behavior
+                // consistent across platforms, since Schannel rejects a zero-length keying material
+                // request. An empty request is treated as a no-op even on platforms that do not
+                // otherwise support keying material export.
+                return;
+            }
+
+            SslStreamPal.ExportKeyingMaterial(_securityContext!, label, context, haveContext, output);
+        }
+
         //
         // Stream contract implementation.
         //

@@ -315,6 +315,8 @@ namespace System.Net.Security
         public virtual void EndAuthenticateAsServer(System.IAsyncResult asyncResult) { }
         public override int EndRead(System.IAsyncResult asyncResult) { throw null; }
         public override void EndWrite(System.IAsyncResult asyncResult) { }
+        public void ExportKeyingMaterial(System.ReadOnlySpan<byte> label, System.Span<byte> output) { }
+        public void ExportKeyingMaterial(System.ReadOnlySpan<byte> label, System.ReadOnlySpan<byte> context, System.Span<byte> output) { }
         ~SslStream() { }
         public override void Flush() { }
         public override System.Threading.Tasks.Task FlushAsync(System.Threading.CancellationToken cancellationToken) { throw null; }

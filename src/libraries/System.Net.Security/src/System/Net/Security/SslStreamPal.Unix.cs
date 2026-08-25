@@ -150,6 +150,21 @@ namespace System.Net.Security
             return bindingHandle;
         }
 
+        public static void ExportKeyingMaterial(
+            SafeDeleteSslContext securityContext,
+            ReadOnlySpan<byte> label,
+            ReadOnlySpan<byte> context,
+            bool haveContext,
+            Span<byte> output)
+        {
+            Interop.OpenSsl.SslExportKeyingMaterial(
+                (SafeSslHandle)securityContext,
+                label,
+                context,
+                haveContext,
+                output);
+        }
+
         public static ProtocolToken Renegotiate(
             ref SafeFreeCredentials? credentialsHandle,
             ref SafeDeleteSslContext context,

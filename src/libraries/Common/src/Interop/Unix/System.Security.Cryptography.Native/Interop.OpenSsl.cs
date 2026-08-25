@@ -126,6 +126,34 @@ internal static partial class Interop
             return bindingHandle;
         }
 
+        internal static unsafe void SslExportKeyingMaterial(
+            SafeSslHandle context,
+            ReadOnlySpan<byte> label,
+            ReadOnlySpan<byte> contextValue,
+            bool haveContext,
+            Span<byte> output)
+        {
+            fixed (byte* labelPtr = label)
+            fixed (byte* contextPtr = contextValue)
+            fixed (byte* outputPtr = output)
+            {
+                int ret = Ssl.SslExportKeyingMaterial(
+                    context,
+                    haveContext ? 1 : 0,
+                    contextPtr,
+                    contextValue.Length,
+                    labelPtr,
+                    label.Length,
+                    outputPtr,
+                    output.Length);
+
+                if (ret != 1)
+                {
+                    throw CreateSslException(SR.net_ssl_export_keying_material_failed);
+                }
+            }
+        }
+
         private static readonly int s_cacheSizeOverride = GetCacheSize();
 
         private static int GetCacheSize()

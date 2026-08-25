@@ -718,6 +718,85 @@ namespace System.Net.Security
             connectionInfo.UpdateSslConnectionInfo(securityContext);
         }
 
+        public static unsafe void ExportKeyingMaterial(
+            SafeDeleteContext securityContext,
+            ReadOnlySpan<byte> label,
+            ReadOnlySpan<byte> context,
+            bool haveContext,
+            Span<byte> output)
+        {
+            // Schannel stores the label and context lengths in 16-bit fields, so it cannot
+            // represent inputs that do not fit in a ushort. Fail loudly instead of silently
+            // truncating the length while leaving the buffer pointer intact, which would make
+            // Schannel derive keying material from truncated input with no error.
+            if (label.Length + 1 > ushort.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(label));
+            }
+
+            if (haveContext && context.Length > ushort.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(context));
+            }
+
+            // Schannel requires a NUL-terminated ASCII label whose length includes the
+            // terminator; the terminator is stripped before the label is mixed into the PRF.
+            byte[] labelBuffer = new byte[label.Length + 1];
+            label.CopyTo(labelBuffer);
+
+            fixed (byte* labelPtr = labelBuffer)
+            fixed (byte* contextPtr = context)
+            {
+                // Schannel cannot represent a present-but-empty context, so both "no context"
+                // and an explicitly empty context map to no context value here.
+                bool hasContextValue = haveContext && context.Length > 0;
+
+                Interop.SspiCli.SecPkgContext_KeyingMaterialInfo info = default;
+                info.cbLabel = (ushort)labelBuffer.Length;
+                info.pszLabel = (IntPtr)labelPtr;
+                info.cbContextValue = hasContextValue ? (ushort)context.Length : (ushort)0;
+                info.pbContextValue = hasContextValue ? (IntPtr)contextPtr : IntPtr.Zero;
+                info.cbKeyingMaterial = (uint)output.Length;
+
+                byte[] infoBuffer = new byte[sizeof(Interop.SspiCli.SecPkgContext_KeyingMaterialInfo)];
+                MemoryMarshal.Write(infoBuffer, in info);
+
+                int status = SafeFreeContextBuffer.SetContextAttributes(
+                    securityContext,
+                    Interop.SspiCli.ContextAttribute.SECPKG_ATTR_KEYING_MATERIAL_INFO,
+                    infoBuffer);
+
+                if (status != 0)
+                {
+                    throw new Win32Exception(status, SR.Format(SR.net_ssl_export_keying_material_failed, status));
+                }
+            }
+
+            Interop.SspiCli.SecPkgContext_KeyingMaterial keyingMaterial = default;
+            bool success = SSPIWrapper.QueryBlittableContextAttributes(
+                GlobalSSPI.SSPISecureChannel,
+                securityContext,
+                Interop.SspiCli.ContextAttribute.SECPKG_ATTR_KEYING_MATERIAL,
+                ref keyingMaterial);
+
+            if (!success)
+            {
+                throw new Win32Exception(SR.Format(SR.net_ssl_export_keying_material_failed, nameof(Interop.SspiCli.ContextAttribute.SECPKG_ATTR_KEYING_MATERIAL)));
+            }
+
+            try
+            {
+                Debug.Assert(keyingMaterial.cbKeyingMaterial >= (uint)output.Length);
+                new ReadOnlySpan<byte>((void*)keyingMaterial.pbKeyingMaterial, (int)keyingMaterial.cbKeyingMaterial)
+                    .Slice(0, output.Length)
+                    .CopyTo(output);
+            }
+            finally
+            {
+                Interop.SspiCli.FreeContextBuffer(keyingMaterial.pbKeyingMaterial);
+            }
+        }
+
         private static int GetProtocolFlagsFromSslProtocols(SslProtocols protocols, bool isServer)
         {
             int protocolFlags = (int)protocols;

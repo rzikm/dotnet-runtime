@@ -271,6 +271,24 @@ Returns the protocol version string for the SSL instance.
 PALEXPORT const char* CryptoNative_SslGetVersion(SSL* ssl);
 
 /*
+Shims the SSL_export_keying_material method (RFC 5705 / RFC 8446 keying material exporter).
+
+Writes outputLength bytes of exported keying material into output, derived from the supplied
+label and optional context. When haveContext is 0 the exporter runs with no context value,
+which is distinct from supplying an empty context (haveContext is 1 with contextLength 0).
+
+Returns 1 on success; 0 or a negative value on failure.
+*/
+PALEXPORT int32_t CryptoNative_SslExportKeyingMaterial(SSL* ssl,
+                                                       int32_t haveContext,
+                                                       const uint8_t* context,
+                                                       int32_t contextLength,
+                                                       const uint8_t* label,
+                                                       int32_t labelLength,
+                                                       uint8_t* output,
+                                                       int32_t outputLength);
+
+/*
 Shims the SSL_write method.
 
 Returns the positive number of bytes written when successful, 0 or a negative number

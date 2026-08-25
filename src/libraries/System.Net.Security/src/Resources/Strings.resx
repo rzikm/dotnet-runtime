@@ -332,6 +332,12 @@
   <data name="net_ssl_encrypt_failed" xml:space="preserve">
     <value>Encrypt failed with OpenSSL error - {0}.</value>
   </data>
+  <data name="net_ssl_export_keying_material_failed" xml:space="preserve">
+    <value>Exporting keying material failed with error - {0}.</value>
+  </data>
+  <data name="net_ssl_export_keying_material_not_supported" xml:space="preserve">
+    <value>Exporting keying material is not supported on this platform.</value>
+  </data>
   <data name="net_ssl_check_private_key_failed" xml:space="preserve">
     <value>SSL certificate private key check failed with OpenSSL error - {0}.</value>
   </data>
