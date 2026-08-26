@@ -1,0 +1,140 @@
+<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ assembly name="System.Xml" #>
+<#@ assembly name="System.Xml.Linq" #>
+<#@ assembly name="System.Net.Http" #>
+<#@ import namespace="System.Globalization" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Xml.Linq" #>
+<#@ import namespace="System.Net.Http" #>
+<#@ output extension=".cs" #>
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+// This file has been auto-generated. Do not edit by hand.
+// Instead open Developer Command prompt and run: TextTransform FileName.tt
+// Or set AllowTlsCipherSuiteGeneration=true and open VS and edit there directly
+
+// This line is needed so that file compiles both as a T4 template and C# file<#= "<" + "#+" #>
+
+#if PRODUCT
+namespace System.Net.Security
+{
+#endif
+    [CLSCompliant(false)]
+    public enum TlsSupportedGroup : ushort
+    {
+<#
+foreach (var record in GetIanaRecords())
+{
+    // we want to traverse whole list even though we don't need to (so that we know about any new RFCs)
+    if (!record.Refs.Select(IsPublicRfc).ToArray().Contains(true))
+        continue;
+    var rfcs = string.Join(", ", record.Refs.Where(IsPublicRfc));
+    var rfcComment = string.IsNullOrEmpty(rfcs) ? "" : $" // {rfcs}";
+#>
+        /// <summary>
+        /// Represents the <#= record.Name #> TLS supported group.
+        /// </summary>
+        <#= record.Name #> = <#= record.Value #>,<#= rfcComment #>
+<#
+} // foreach (var record in GetIanaRecords())
+#>
+#if PRODUCT
+    }
+#endif
+}
+//<#= "#" + ">" #>
+<#+
+const string source = @"https://www.iana.org/assignments/tls-parameters/tls-parameters.xml";
+
+class SupportedGroupInfo
+{
+    public string Name;
+    public string Value;
+    public string[] Refs;
+}
+
+static bool ShouldUseValue(string description, string value)
+{
+    // Skip placeholder rows, ranges (e.g. "42-255"), and obsolete/aliased entries whose
+    // description is not a valid C# identifier.
+    return !description.Contains("Unassigned") &&
+           !description.Contains("Reserved") &&
+           !description.Contains("OBSOLETE") &&
+           !value.Contains("-");
+}
+
+static XElement ElementLN(XElement el, string localName)
+{
+    return el.Elements().Where((e) => e.Name.LocalName == localName).Single();
+}
+
+static IEnumerable<SupportedGroupInfo> GetIanaRecords()
+{
+    HttpClient client = new HttpClient();
+    //For some reason IANA returns 403 Forbidden when request does not contain User-Agent.
+    client.DefaultRequestHeaders.Add("User-Agent", "dotnet/corefx");
+    HttpResponseMessage response = client.GetAsync(source).Result;
+
+    return XDocument.Load(response.Content.ReadAsStreamAsync().Result)
+        .Descendants()
+        .Where((el) =>
+            el.Name.LocalName == "registry" &&
+            el.Attribute("id").Value == "tls-parameters-8")
+        .Single()
+        .Descendants()
+        .Where((el) =>
+            el.Name.LocalName == "record" &&
+            ShouldUseValue(
+                ElementLN(el, "description").Value,
+                ElementLN(el, "value").Value))
+        .Select(record =>
+        {
+            // The supported-groups registry uses a single decimal code point (e.g. "23").
+            // Emit it as the 16-bit wire value in hex (e.g. "0x0017").
+            var value = "0x" + ushort.Parse(ElementLN(record, "value").Value, CultureInfo.InvariantCulture).ToString("X4", CultureInfo.InvariantCulture);
+            var description = ElementLN(record, "description").Value;
+            var refs = record.Elements()
+                    .Where((el) => el.Name.LocalName == "xref")
+                    .Select((el) => el.Attribute("data").Value).ToArray();
+            return new SupportedGroupInfo()
+            {
+                Name = description,
+                Value = value,
+                Refs = refs,
+            };
+        });
+}
+
+private static bool IsPublicRfc(string rfc)
+{
+    switch (rfc)
+    {
+        case "rfc8422": // ECC for TLS 1.2 and earlier, August 2018
+        case "rfc9847": // Deprecating obsolete key exchange methods in TLS 1.2, 2025
+        case "rfc7027": // Brainpool curves for TLS, October 2013
+        case "rfc9846": // X25519 and X448 for TLS, 2025
+        case "rfc8734": // Brainpool curves for TLS 1.3, February 2020
+        case "rfc9189": // GOST cipher suites for TLS 1.2, March 2022
+        case "rfc8998": // ShangMi (SM) cipher suites for TLS 1.3, March 2021
+        case "rfc7919": // Finite Field DHE (ffdhe) for TLS, August 2016
+        case "rfc10024": // Hybrid key exchange (ECDHE + ML-KEM) for TLS 1.3, 2025
+        case "rfc8447": // IANA registry updates for TLS and DTLS, August 2018
+            return true;
+
+        // WIP/drafts
+        case "draft-connolly-tls-mlkem-key-agreement-05": // Standalone ML-KEM for TLS 1.3
+        case "draft-rosomakho-tls-ecdhe-mlkem512-00": // ECDHE + ML-KEM-512 hybrids
+        case "draft-yang-tls-hybrid-sm2-mlkem-03": // SM2 + ML-KEM hybrid
+        case "draft-kwiatkowski-tls-ecdhe-kyber-01": // ECDHE + Kyber (obsolete)
+        case "draft-tls-westerbaan-xyber768d00-02": // X25519 + Kyber (obsolete)
+            return false;
+        default:
+            throw new Exception($"Unknown rfc: {rfc}. Please see IsPublicRfc in the .tt file.");
+    }
+}
+
+#>

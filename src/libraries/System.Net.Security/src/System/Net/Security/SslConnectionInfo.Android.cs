@@ -31,6 +31,10 @@ namespace System.Net.Security
             // Enum value names should match the cipher suite name, so we just parse the
             string cipherSuite = Interop.AndroidCrypto.SSLStreamGetCipherSuite(sslContext);
             MapCipherSuite(Enum.Parse<TlsCipherSuite>(cipherSuite));
+
+            // The Java SSLSession/SSLEngine API used on Android does not expose the negotiated TLS
+            // named group (key exchange group): standard JSSE has no accessor, and Conscrypt does not
+            // surface it through a public API. TlsSupportedGroup is left at its default (0 = unavailable).
         }
     }
 }

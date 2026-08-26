@@ -277,6 +277,8 @@ namespace System.Net.Security
         public System.Net.Security.SslApplicationProtocol NegotiatedApplicationProtocol { get { throw null; } }
         [System.CLSCompliantAttribute(false)]
         public virtual System.Net.Security.TlsCipherSuite NegotiatedCipherSuite { get { throw null; } }
+        [System.CLSCompliantAttribute(false)]
+        public virtual System.Net.Security.TlsSupportedGroup NegotiatedGroup { get { throw null; } }
         public override long Position { get { throw null; } set { } }
         public override int ReadTimeout { get { throw null; } set { } }
         public virtual System.Security.Cryptography.X509Certificates.X509Certificate? RemoteCertificate { get { throw null; } }
@@ -686,6 +688,61 @@ namespace System.Net.Security
         TLS_ECDHE_PSK_WITH_AES_256_GCM_SHA384 = (ushort)53250,
         TLS_ECDHE_PSK_WITH_AES_128_CCM_8_SHA256 = (ushort)53251,
         TLS_ECDHE_PSK_WITH_AES_128_CCM_SHA256 = (ushort)53253,
+    }
+    [System.CLSCompliantAttribute(false)]
+    public enum TlsSupportedGroup : ushort
+    {
+        sect163k1 = (ushort)1,
+        sect163r1 = (ushort)2,
+        sect163r2 = (ushort)3,
+        sect193r1 = (ushort)4,
+        sect193r2 = (ushort)5,
+        sect233k1 = (ushort)6,
+        sect233r1 = (ushort)7,
+        sect239k1 = (ushort)8,
+        sect283k1 = (ushort)9,
+        sect283r1 = (ushort)10,
+        sect409k1 = (ushort)11,
+        sect409r1 = (ushort)12,
+        sect571k1 = (ushort)13,
+        sect571r1 = (ushort)14,
+        secp160k1 = (ushort)15,
+        secp160r1 = (ushort)16,
+        secp160r2 = (ushort)17,
+        secp192k1 = (ushort)18,
+        secp192r1 = (ushort)19,
+        secp224k1 = (ushort)20,
+        secp224r1 = (ushort)21,
+        secp256k1 = (ushort)22,
+        secp256r1 = (ushort)23,
+        secp384r1 = (ushort)24,
+        secp521r1 = (ushort)25,
+        brainpoolP256r1 = (ushort)26,
+        brainpoolP384r1 = (ushort)27,
+        brainpoolP512r1 = (ushort)28,
+        x25519 = (ushort)29,
+        x448 = (ushort)30,
+        brainpoolP256r1tls13 = (ushort)31,
+        brainpoolP384r1tls13 = (ushort)32,
+        brainpoolP512r1tls13 = (ushort)33,
+        GC256A = (ushort)34,
+        GC256B = (ushort)35,
+        GC256C = (ushort)36,
+        GC256D = (ushort)37,
+        GC512A = (ushort)38,
+        GC512B = (ushort)39,
+        GC512C = (ushort)40,
+        curveSM2 = (ushort)41,
+        ffdhe2048 = (ushort)256,
+        ffdhe3072 = (ushort)257,
+        ffdhe4096 = (ushort)258,
+        ffdhe6144 = (ushort)259,
+        ffdhe8192 = (ushort)260,
+        SecP256r1MLKEM768 = (ushort)4587,
+        X25519MLKEM768 = (ushort)4588,
+        SecP384r1MLKEM1024 = (ushort)4589,
+        arbitrary_explicit_prime_curves = (ushort)65281,
+        arbitrary_explicit_char2_curves = (ushort)65282,
     }
     [System.Diagnostics.CodeAnalysis.ExperimentalAttribute("SYSLIB5007", UrlFormat = "https://aka.ms/dotnet-warnings/{0}")]
     public enum TlsOperationStatus

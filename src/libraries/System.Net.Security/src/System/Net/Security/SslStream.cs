@@ -585,6 +585,24 @@ namespace System.Net.Security
             }
         }
 
+        /// <summary>
+        /// Gets the named group (key exchange group) negotiated for this connection.
+        /// </summary>
+        /// <value>
+        /// The IANA-assigned TLS supported group used for key exchange, or <see cref="TlsSupportedGroup"/> with
+        /// value 0 when the group is unavailable (for example, on platforms that do not report it or when the
+        /// handshake did not perform a key exchange).
+        /// </value>
+        [CLSCompliant(false)]
+        public virtual TlsSupportedGroup NegotiatedGroup
+        {
+            get
+            {
+                ThrowIfExceptionalOrNotHandshake();
+                return _connectionInfo.TlsSupportedGroup;
+            }
+        }
+
         [Obsolete(Obsoletions.TlsCipherAlgorithmEnumsMessage, DiagnosticId = Obsoletions.TlsCipherAlgorithmEnumsDiagId, UrlFormat = Obsoletions.SharedUrlFormat)]
         public virtual CipherAlgorithmType CipherAlgorithm
         {

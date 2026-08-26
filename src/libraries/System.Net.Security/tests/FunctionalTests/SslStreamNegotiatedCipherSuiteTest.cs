@@ -131,6 +131,57 @@ namespace System.Net.Security.Tests
             }
         }
 
+        private static bool NegotiatedGroupSupported => PlatformDetection.IsOpenSslSupported && Tls13Supported;
+
+        // The named group (key exchange group) is only surfaced on platforms backed by OpenSSL 3.0+.
+        private static readonly HashSet<TlsSupportedGroup> s_knownTls13Groups = new HashSet<TlsSupportedGroup>()
+        {
+            TlsSupportedGroup.secp256r1,
+            TlsSupportedGroup.secp384r1,
+            TlsSupportedGroup.secp521r1,
+            TlsSupportedGroup.x25519,
+            TlsSupportedGroup.x448,
+            TlsSupportedGroup.ffdhe2048,
+            TlsSupportedGroup.ffdhe3072,
+            TlsSupportedGroup.ffdhe4096,
+            TlsSupportedGroup.ffdhe6144,
+            TlsSupportedGroup.ffdhe8192,
+            TlsSupportedGroup.SecP256r1MLKEM768,
+            TlsSupportedGroup.X25519MLKEM768,
+            TlsSupportedGroup.SecP384r1MLKEM1024,
+        };
+
+        [ConditionalFact(typeof(NegotiatedCipherSuiteTest), nameof(NegotiatedGroupSupported))]
+        public void NegotiatedGroup_Tls13Handshake_ReportsKeyExchangeGroup()
+        {
+            var p = new ConnectionParams()
+            {
+                SslProtocols = SslProtocols.Tls13
+            };
+
+            NegotiatedParams ret = ConnectAndGetNegotiatedParams(p, p);
+            ret.Succeeded();
+
+            // OpenSSL 3.0+ reports the negotiated named group. Older OpenSSL (1.1.1) cannot and
+            // reports the default (0); tolerate that so the test doesn't flake on legacy libssl.
+            if (ret.Group != default)
+            {
+                Assert.True(
+                    s_knownTls13Groups.Contains(ret.Group),
+                    $"`{ret.Group}` (0x{(ushort)ret.Group:X4}) is not a recognized TLS 1.3 key exchange group");
+            }
+        }
+
+        [Fact]
+        public void NegotiatedGroup_BeforeNegotiationStarted_ShouldThrow()
+        {
+            using (var ms = new MemoryStream())
+            using (var server = new SslStream(ms, leaveInnerStreamOpen: false))
+            {
+                Assert.Throws<InvalidOperationException>(() => server.NegotiatedGroup);
+            }
+        }
+
         [ConditionalFact(typeof(NegotiatedCipherSuiteTest), nameof(CipherSuitesPolicySupported))]
         public void CipherSuitesPolicy_AllowSomeCipherSuitesWithNoEncryptionOption_Fails()
         {
@@ -673,6 +724,7 @@ namespace System.Net.Security.Tests
             public bool HasSucceeded => _failure == null;
             public SslProtocols Protocol { get; private set; }
             public TlsCipherSuite CipherSuite { get; private set; }
+            public TlsSupportedGroup Group { get; private set; }
 
             public NegotiatedParams(Exception failure)
             {
@@ -684,9 +736,11 @@ namespace System.Net.Security.Tests
                 _failure = null;
                 CipherSuite = serverStream.NegotiatedCipherSuite;
                 Protocol = serverStream.SslProtocol;
+                Group = serverStream.NegotiatedGroup;
 
                 Assert.Equal(CipherSuite, clientStream.NegotiatedCipherSuite);
                 Assert.Equal(Protocol, clientStream.SslProtocol);
+                Assert.Equal(Group, clientStream.NegotiatedGroup);
             }
 
             public void Failed()

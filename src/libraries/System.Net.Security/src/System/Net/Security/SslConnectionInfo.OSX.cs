@@ -57,6 +57,10 @@ namespace System.Net.Security
             Protocol = (int)protocol;
             TlsCipherSuite = cipherSuite;
             MapCipherSuite(cipherSuite);
+
+            // Network.framework does not surface the negotiated TLS named group (key exchange group):
+            // sec_protocol_metadata exposes the ciphersuite and protocol version but no named-group
+            // accessor. TlsSupportedGroup is left at its default (0 = unavailable).
         }
 
         private void UpdateSslConnectionInfoAppleCrypto(SafeDeleteSslContext context)
@@ -105,6 +109,9 @@ namespace System.Net.Security
             }
 
             MapCipherSuite(cipherSuite);
+
+            // Neither SecureTransport nor Network.framework surface the negotiated TLS named group
+            // (key exchange group); TlsSupportedGroup is left at its default (0 = unavailable).
         }
     }
 }

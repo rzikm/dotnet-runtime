@@ -286,6 +286,21 @@ const EVP_CIPHER* EVP_rc2_cbc(void);
 
 #define API_EXISTS(fn) (fn != NULL)
 
+// SSL_get_negotiated_group was introduced in OpenSSL 3.0. Declare it here so the
+// shim compiles against older libssl development headers; it is resolved
+// dynamically at runtime via LIGHTUP_FUNCTION and may be absent on older libssl.
+// The parameter must be 'const SSL*' to match the real OpenSSL 3.0+ prototype,
+// otherwise this becomes a conflicting redeclaration when the real header is present.
+int SSL_get_negotiated_group(const SSL* ssl);
+
+// TLSEXT_nid_unknown was introduced in OpenSSL 3.0 (openssl/tls1.h). When building
+// against older libssl development headers it is undefined, so provide the value
+// here. It is OR'd into the NID returned by SSL_get_negotiated_group for groups
+// (e.g. provider-based ML-KEM hybrids) that have no dedicated OpenSSL NID.
+#ifndef TLSEXT_nid_unknown
+#define TLSEXT_nid_unknown 0x1000000
+#endif
+
 #if defined(FEATURE_DISTRO_AGNOSTIC_SSL) && defined(TARGET_ARM) && defined(TARGET_LINUX) && !defined(TARGET_ANDROID)
 extern bool g_libSslUses32BitTime;
 #endif
@@ -747,6 +762,7 @@ extern bool g_libSslUses32BitTime;
     REQUIRED_FUNCTION(SSL_get_ex_data_X509_STORE_CTX_idx) \
     REQUIRED_FUNCTION(SSL_get_pending_cipher) \
     REQUIRED_FUNCTION(SSL_get_finished) \
+    LIGHTUP_FUNCTION(SSL_get_negotiated_group) \
     REQUIRED_FUNCTION(SSL_get_peer_cert_chain) \
     REQUIRED_FUNCTION(SSL_get_peer_finished) \
     REQUIRED_FUNCTION(SSL_get_servername) \
@@ -1353,6 +1369,7 @@ extern TYPEOF(OPENSSL_gmtime)* OPENSSL_gmtime_ptr;
 #define SSL_get_ex_data SSL_get_ex_data_ptr
 #define SSL_get_ex_data_X509_STORE_CTX_idx SSL_get_ex_data_X509_STORE_CTX_idx_ptr
 #define SSL_get_finished SSL_get_finished_ptr
+#define SSL_get_negotiated_group SSL_get_negotiated_group_ptr
 #define SSL_get_peer_cert_chain SSL_get_peer_cert_chain_ptr
 #define SSL_get_peer_finished SSL_get_peer_finished_ptr
 #define SSL_get_pending_cipher SSL_get_pending_cipher_ptr

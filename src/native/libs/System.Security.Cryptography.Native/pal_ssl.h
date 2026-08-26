@@ -651,6 +651,14 @@ Shims the SSL_get_current_cipher and SSL_CIPHER_get_id.
 PALEXPORT int32_t CryptoNative_SslGetCurrentCipherId(SSL* ssl, int32_t* cipherId);
 
 /*
+Shims SSL_get_negotiated_group and translates the result to the IANA TLS
+Supported Group (named group) code point used for the key exchange. Returns 0
+when the group is not available (e.g. older OpenSSL, no key exchange, or an
+untranslatable classic group).
+*/
+PALEXPORT int32_t CryptoNative_SslGetNegotiatedGroup(SSL* ssl);
+
+/*
 Looks up a cipher by the IANA identifier, returns a shared string for the OpenSSL name for the cipher,
 and emits a value indicating if the cipher belongs to the SSL2-TLS1.2 list, or the TLS1.3+ list.
 */

@@ -1230,6 +1230,89 @@ int32_t CryptoNative_SslGetCurrentCipherId(SSL* ssl, int32_t* cipherId)
     return 1;
 }
 
+// Maps an OpenSSL group NID (as returned by SSL_get_negotiated_group) to the
+// IANA TLS Supported Group (named group) code point. Only the classic groups
+// that OpenSSL exposes with a dedicated NID need translation; provider-based
+// groups (e.g. the ML-KEM hybrids) are handled by the caller via the
+// TLSEXT_nid_unknown fast path.
+static int32_t MapNidToTlsGroupId(int nid)
+{
+    switch (nid)
+    {
+        // Elliptic Curve Groups (ECDHE) - RFC 8422 / RFC 4492
+        case NID_sect163k1: return 1;
+        case NID_sect163r1: return 2;
+        case NID_sect163r2: return 3;
+        case NID_sect193r1: return 4;
+        case NID_sect193r2: return 5;
+        case NID_sect233k1: return 6;
+        case NID_sect233r1: return 7;
+        case NID_sect239k1: return 8;
+        case NID_sect283k1: return 9;
+        case NID_sect283r1: return 10;
+        case NID_sect409k1: return 11;
+        case NID_sect409r1: return 12;
+        case NID_sect571k1: return 13;
+        case NID_sect571r1: return 14;
+        case NID_secp160k1: return 15;
+        case NID_secp160r1: return 16;
+        case NID_secp160r2: return 17;
+        case NID_secp192k1: return 18;
+        case NID_X9_62_prime192v1: return 19; // secp192r1
+        case NID_secp224k1: return 20;
+        case NID_secp224r1: return 21;
+        case NID_secp256k1: return 22;
+        case NID_X9_62_prime256v1: return 23; // secp256r1
+        case NID_secp384r1: return 24;
+        case NID_secp521r1: return 25;
+        case NID_brainpoolP256r1: return 26;
+        case NID_brainpoolP384r1: return 27;
+        case NID_brainpoolP512r1: return 28;
+        case NID_X25519: return 29;
+        case NID_X448: return 30;
+        // Finite Field Groups (DHE) - RFC 7919
+        case NID_ffdhe2048: return 256;
+        case NID_ffdhe3072: return 257;
+        case NID_ffdhe4096: return 258;
+        case NID_ffdhe6144: return 259;
+        case NID_ffdhe8192: return 260;
+        // GOST (RFC 9189) and SM2 (RFC 8998) groups are members of the public
+        // TlsSupportedGroup enum but are not mapped here: they are engine/provider
+        // gated and rarely negotiated, so a negotiated GOST/SM2 group reports 0
+        // (unavailable) rather than its IANA value. This can be extended if needed.
+        default: return 0;
+    }
+}
+
+int32_t CryptoNative_SslGetNegotiatedGroup(SSL* ssl)
+{
+    // No error queue impact.
+
+    // SSL_get_negotiated_group was added in OpenSSL 3.0; on older versions the
+    // group is not retrievable and we report "unassigned" (0).
+    if (!API_EXISTS(SSL_get_negotiated_group))
+    {
+        return 0;
+    }
+
+    int nid = SSL_get_negotiated_group(ssl);
+    if (nid == NID_undef)
+    {
+        return 0;
+    }
+
+    // For groups that OpenSSL does not have a dedicated NID for (notably the
+    // provider-based ML-KEM hybrids), SSL_get_negotiated_group returns the IANA
+    // code point OR'd with TLSEXT_nid_unknown. The low 16 bits are the exact
+    // IANA Supported Group value in that case.
+    if ((nid & TLSEXT_nid_unknown) == TLSEXT_nid_unknown)
+    {
+        return nid & 0xFFFF;
+    }
+
+    return MapNidToTlsGroupId(nid);
+}
+
 // This function generates key pair and creates simple certificate.
 // On success, the generated key is stored in *pEvp and the caller takes ownership.
 static int MakeSelfSignedCertificate(X509* cert, EVP_PKEY** pEvp)

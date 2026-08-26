@@ -67,6 +67,14 @@ namespace System.Net.Security
 
             TlsCipherSuite = cipherSuite;
 
+            // Schannel does not expose the negotiated TLS named group (key exchange group)
+            // through any QueryContextAttributes attribute: SECPKG_ATTR_CIPHER_INFO reports only
+            // the key exchange algorithm name (e.g. "ECDH") and key sizes, and
+            // SECPKG_ATTR_CONNECTION_INFO reports only the key exchange ALG_ID (e.g. CALG_ECDH).
+            // This remains true even on Windows 11 24H2 / Server 2025, which negotiate ML-KEM
+            // hybrid groups but still do not surface the selected group. TlsSupportedGroup is
+            // therefore left at its default (0 = unavailable).
+
             // In TLS1.3, Schannel may erroneously report empty ALPN after
             // receiving resumption ticket (fake Renegotiation). Avoid updating
             // ApplicationProtocol in this case if we already have some, TLS1.3

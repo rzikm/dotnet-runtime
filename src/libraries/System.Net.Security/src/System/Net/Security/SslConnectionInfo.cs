@@ -13,6 +13,7 @@ namespace System.Net.Security
 
         public int Protocol { get; private set; }
         public TlsCipherSuite TlsCipherSuite { get; private set; }
+        public TlsSupportedGroup TlsSupportedGroup { get; private set; }
         public int DataCipherAlg { get; private set; }
         public int DataKeySize { get; private set; }
         public int DataHashAlg { get; private set; }

@@ -156,6 +156,11 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>TlsCipherSuite.tt</DependentUpon>
     </Compile>
+    <Compile Include="System\Net\Security\TlsSupportedGroup.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>TlsSupportedGroup.tt</DependentUpon>
+    </Compile>
     <None Include="System\Net\Security\TlsCipherSuiteNameParser.ttinclude" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' != '' and '$(TargetPlatformIdentifier)' != 'windows'">
@@ -177,6 +182,10 @@
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>TlsCipherSuite.cs</LastGenOutput>
     </None>
+    <None Include="System\Net\Security\TlsSupportedGroup.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>TlsSupportedGroup.cs</LastGenOutput>
+    </None>
     <None Include="System\Net\Security\SslConnectionInfo.Unix.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>SslConnectionInfo.Unix.cs</LastGenOutput>
@@ -185,6 +194,7 @@
 
   <ItemGroup Condition="'$(AllowTlsCipherSuiteGeneration)' != 'true'">
     <None Include="System\Net\Security\TlsCipherSuite.tt" />
+    <None Include="System\Net\Security\TlsSupportedGroup.tt" />
     <None Include="System\Net\Security\SslConnectionInfo.Unix.tt" />
   </ItemGroup>
 

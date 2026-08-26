@@ -32,6 +32,7 @@ namespace System.Net.Security
             TlsResumed = Interop.Ssl.SslSessionReused(sslContext);
 #endif
             MapCipherSuite(SslGetCurrentCipherSuite(sslContext));
+            TlsSupportedGroup = (TlsSupportedGroup)Interop.Ssl.SslGetNegotiatedGroup(sslContext);
         }
 
         private static TlsCipherSuite SslGetCurrentCipherSuite(SafeSslHandle ssl)
